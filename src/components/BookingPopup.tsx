@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarDays } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -46,10 +47,10 @@ interface BookingPopupProps {
 
 const BookingPopup = ({ children, title, vkMessage }: BookingPopupProps) => {
   const [open, setOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
   const isMobile = useIsMobile();
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +70,12 @@ const BookingPopup = ({ children, title, vkMessage }: BookingPopupProps) => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      setOpenUpward(spaceBelow < 240);
+      const openUp = spaceBelow < 260;
+      setPopoverPos({
+        top: openUp ? rect.top + window.scrollY : rect.bottom + window.scrollY,
+        left: rect.left + rect.width / 2,
+        openUp,
+      });
     }
     setOpen(!open);
   };
@@ -95,66 +101,80 @@ const BookingPopup = ({ children, title, vkMessage }: BookingPopupProps) => {
   );
 
   return (
-    <div className="relative inline-block">
-      <div ref={triggerRef}>
+    <>
+      <div ref={triggerRef} className="inline-block">
         {children({ onClick: handleOpen })}
       </div>
 
-      <AnimatePresence>
-        {open && !isMobile && (
-          <motion.div
-            ref={popoverRef}
-            initial={{ opacity: 0, scale: 0.95, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -4 }}
-            transition={{ duration: 0.2 }}
-            className={`absolute ${openUpward ? "bottom-full mb-2" : "top-full mt-2"} left-1/2 -translate-x-1/2 z-50 w-72 bg-white/80 backdrop-blur-2xl border border-border rounded-xl shadow-lg`}
-          >
-            {title && (
-              <p className="px-4 pt-3 pb-1 text-xs font-semibold text-muted-foreground truncate">{title}</p>
-            )}
-            {menu}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Mobile bottom sheet */}
-      <AnimatePresence>
-        {open && isMobile && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/30 z-50"
-              onClick={() => setOpen(false)}
-            />
+      {/* Desktop popover via portal */}
+      {createPortal(
+        <AnimatePresence>
+          {open && !isMobile && (
             <motion.div
               ref={popoverRef}
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-2xl shadow-2xl pb-safe"
+              initial={{ opacity: 0, scale: 0.95, y: popoverPos.openUp ? 4 : -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: popoverPos.openUp ? 4 : -4 }}
+              transition={{ duration: 0.2 }}
+              style={{
+                position: "absolute",
+                top: popoverPos.openUp ? "auto" : popoverPos.top + 8,
+                bottom: popoverPos.openUp ? `${document.documentElement.scrollHeight - popoverPos.top + 8}px` : "auto",
+                left: popoverPos.left,
+                transform: "translateX(-50%)",
+              }}
+              className="z-[9999] w-72 bg-white/80 backdrop-blur-2xl border border-border rounded-xl shadow-lg"
             >
-              <div className="w-10 h-1 bg-muted-foreground/20 rounded-full mx-auto mt-3 mb-1" />
-              <p className="text-center text-sm font-semibold text-foreground px-4 pt-2 pb-1">
-                {title || "Выберите способ записи"}
-              </p>
+              {title && (
+                <p className="px-4 pt-3 pb-1 text-xs font-semibold text-muted-foreground truncate">{title}</p>
+              )}
               {menu}
-              <div className="px-4 pb-6 pt-1">
-                <button
-                  onClick={() => setOpen(false)}
-                  className="w-full py-3 rounded-xl text-sm font-medium text-muted-foreground bg-secondary"
-                >
-                  Отмена
-                </button>
-              </div>
             </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Mobile bottom sheet via portal */}
+      {createPortal(
+        <AnimatePresence>
+          {open && isMobile && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/30 z-[9998]"
+                onClick={() => setOpen(false)}
+              />
+              <motion.div
+                ref={popoverRef}
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                className="fixed bottom-0 left-0 right-0 z-[9999] bg-background rounded-t-2xl shadow-2xl pb-safe"
+              >
+                <div className="w-10 h-1 bg-muted-foreground/20 rounded-full mx-auto mt-3 mb-1" />
+                <p className="text-center text-sm font-semibold text-foreground px-4 pt-2 pb-1">
+                  {title || "Выберите способ записи"}
+                </p>
+                {menu}
+                <div className="px-4 pb-6 pt-1">
+                  <button
+                    onClick={() => setOpen(false)}
+                    className="w-full py-3 rounded-xl text-sm font-medium text-muted-foreground bg-secondary"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
   );
 };
 
