@@ -1,8 +1,11 @@
+import { useState } from "react";
 import AnimatedSection from "./AnimatedSection";
+import BookingFormModal from "./BookingFormModal";
 
-const VK_LINK = "https://vk.com/im?sel=829464173&msg=" + encodeURIComponent("Привет! Хочу записаться на процедуру 💜");
+const CTABanner = () => {
+  const [modalOpen, setModalOpen] = useState(false);
 
-const CTABanner = () => (
+  return (
   <section className="section-padding">
     <div className="max-w-4xl mx-auto rounded-3xl p-12 md:p-16 text-center animate-gradient-shift" style={{ background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-deep)), hsl(var(--primary)))", backgroundSize: "200% 200%" }}>
       <AnimatedSection>
@@ -13,16 +16,14 @@ const CTABanner = () => (
           Напишите — за 2 минуты подберу процедуру под ваш тип волос. Бесплатно.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a
-            href="https://dikidi.net/2037517"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => setModalOpen(true)}
             className="inline-block px-8 py-3.5 rounded-full bg-primary-foreground text-foreground font-semibold text-sm hover:opacity-90 transition-opacity"
           >
             📅 Записаться онлайн
-          </a>
+          </button>
           <a
-            href={VK_LINK}
+            href="https://vk.com/stacybelll"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block px-8 py-3.5 rounded-full border-2 border-primary-foreground/30 text-primary-foreground font-semibold text-sm hover:bg-primary-foreground/10 transition-colors"
@@ -38,7 +39,10 @@ const CTABanner = () => (
         </p>
       </AnimatedSection>
     </div>
+
+    <BookingFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
   </section>
-);
+  );
+};
 
 export default CTABanner;
