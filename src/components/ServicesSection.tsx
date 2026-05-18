@@ -26,11 +26,11 @@ const cards: ServiceCard[] = [
     description: "Гладкость, блеск и послушность от 2 до 5 месяцев",
     accent: "from-violet-50 to-purple-50",
     rows: [
-      { name: "По плечи", price: "5 100 ₽", serviceLabel: "Кератиновое выпрямление волос" },
-      { name: "Ниже плеч", price: "5 400 ₽", serviceLabel: "Кератиновое выпрямление волос" },
-      { name: "По лопатки", price: "5 700 ₽", serviceLabel: "Кератиновое выпрямление волос" },
-      { name: "По талию", price: "6 000 ₽", serviceLabel: "Кератиновое выпрямление волос" },
-      { name: "По поясницу", price: "6 300 ₽", serviceLabel: "Кератиновое выпрямление волос" },
+      { name: "По плечи", price: "6 200 ₽", serviceLabel: "Кератиновое выпрямление волос" },
+      { name: "Ниже плеч", price: "6 500 ₽", serviceLabel: "Кератиновое выпрямление волос" },
+      { name: "По лопатки", price: "6 900 ₽", serviceLabel: "Кератиновое выпрямление волос" },
+      { name: "По талию", price: "7 200 ₽", serviceLabel: "Кератиновое выпрямление волос" },
+      { name: "По поясницу", price: "7 700 ₽", serviceLabel: "Кератиновое выпрямление волос" },
     ],
     note: "+10% за густые волосы · +15% за очень густые",
   },
@@ -41,9 +41,9 @@ const cards: ServiceCard[] = [
     accent: "from-fuchsia-50 to-violet-50",
     badge: "Выгодно",
     rows: [
-      { name: "Уходовая стрижка + пилинг + Здоровье", price: "6 500 ₽", serviceLabel: "Комбо-процедура" },
-      { name: "Здоровье для волос + кератин/ботокс", price: "+2 000 ₽", serviceLabel: "Комбо-процедура" },
-      { name: "Здоровье + пилинг + прикорневой объём", price: "7 000 ₽", serviceLabel: "Комбо-процедура" },
+      { name: "Уходовая стрижка + пилинг + Здоровье", price: "8 000 ₽", serviceLabel: "Комбо-процедура" },
+      { name: "Здоровье для волос + кератин/ботокс", price: "+2 400 ₽", serviceLabel: "Комбо-процедура" },
+      { name: "Здоровье + пилинг + прикорневой объём", price: "8 500 ₽", serviceLabel: "Комбо-процедура" },
     ],
   },
   {
@@ -52,9 +52,9 @@ const cards: ServiceCard[] = [
     description: "Глубокое восстановление, питание и укрепление структуры волос",
     accent: "from-indigo-50 to-violet-50",
     rows: [
-      { name: "По плечи", price: "3 000 ₽", serviceLabel: "Здоровье для волос (восстановление)" },
-      { name: "По лопатки", price: "3 200 ₽", serviceLabel: "Здоровье для волос (восстановление)" },
-      { name: "По талию", price: "3 400 ₽", serviceLabel: "Здоровье для волос (восстановление)" },
+      { name: "По плечи", price: "3 700 ₽", serviceLabel: "Здоровье для волос (восстановление)" },
+      { name: "По лопатки", price: "3 900 ₽", serviceLabel: "Здоровье для волос (восстановление)" },
+      { name: "По талию", price: "4 200 ₽", serviceLabel: "Здоровье для волос (восстановление)" },
     ],
   },
   {
@@ -63,8 +63,8 @@ const cards: ServiceCard[] = [
     description: "Дополни процедуру для полного ухода",
     accent: "from-pink-50 to-fuchsia-50",
     rows: [
-      { name: "Пилинг кожи головы", price: "500 ₽", serviceLabel: "Пилинг кожи головы" },
-      { name: "Прикорневой объём на кератине", price: "4 000 ₽", serviceLabel: "Прикорневой объём на кератине" },
+      { name: "Пилинг кожи головы", price: "750 ₽", serviceLabel: "Пилинг кожи головы" },
+      { name: "Прикорневой объём на кератине", price: "5 500 ₽", serviceLabel: "Прикорневой объём на кератине" },
     ],
     note: "от 7 см длины · при жирности у корней · при отсутствии природного объёма",
   },
@@ -73,9 +73,14 @@ const cards: ServiceCard[] = [
 const ServicesSection = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState("");
+  const [selectedComment, setSelectedComment] = useState("");
 
   const openBooking = (serviceLabel: string, rowName: string) => {
-    setSelectedService(`${serviceLabel} (${rowName})`);
+    setSelectedService(serviceLabel);
+    // Если в названии строки есть длина волос — подставляем в комментарий
+    const lengthKeywords = ["плечи", "плеч", "лопатки", "талию", "поясницу"];
+    const hasLength = lengthKeywords.some((k) => rowName.toLowerCase().includes(k));
+    setSelectedComment(hasLength ? `Длина волос: ${rowName}` : "");
     setModalOpen(true);
   };
 
@@ -169,6 +174,7 @@ const ServicesSection = () => {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         prefilledService={selectedService}
+        prefilledComment={selectedComment}
       />
     </section>
   );
