@@ -52,6 +52,10 @@ jobs:
         run: |
           set -euo pipefail
           # PostgreSQL client tooling runs in the same major version as server.
+          # Restore must recover actual synthetic rows, not just an empty schema.
+          docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
+            psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_test \
+            -c "INSERT INTO clients (id, name) VALUES ('11111111-1111-4111-8111-111111111111', 'CI_BACKUP_MARKER_FAKE')"
           docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
             pg_dump -h 127.0.0.1 -U ci_stasy -d stasy_test -Fc > "$RUNNER_TEMP/stasy_ci.dump"
           test -s "$RUNNER_TEMP/stasy_ci.dump"
@@ -66,9 +70,11 @@ jobs:
             psql -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
             -c "SELECT version_num FROM alembic_version")
           test "$restored" = "0005_finance"
-          docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
-            psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
-            -c "SELECT count(*) AS restored_calendar_records FROM calendar_entries"
+          restored_rows=$(docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
+            psql -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
+            -c "SELECT count(*) FROM clients WHERE id='11111111-1111-4111-8111-111111111111' AND name='CI_BACKUP_MARKER_FAKE'")
+          test "$restored_rows" = "1"
+          echo "Synthetic client row recovered from backup."
 
   android:
     name: Android debug build and unit tests (no publication)

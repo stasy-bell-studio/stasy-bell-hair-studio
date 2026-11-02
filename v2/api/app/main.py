@@ -1,5 +1,8 @@
 
+import os
+
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -11,8 +14,14 @@ from app.messenger_webhooks import router as messenger_router
 from app.finance_api import router as finance_router
 from app.db import get_db
 from app.models import Client, MasterAccount, Service
+from app.web_origins import trusted_web_origins
 
 app = FastAPI(title="Stasy Bell OS V2 API", version="0.1.0", docs_url=None, redoc_url=None)
+allowed_origins = trusted_web_origins(os.environ.get("STASY_ALLOWED_WEB_ORIGINS", ""))
+if allowed_origins:
+    app.add_middleware(CORSMiddleware, allow_origins=allowed_origins,
+                       allow_credentials=False, allow_methods=["GET", "POST"],
+                       allow_headers=["Content-Type"], max_age=600)
 
 
 class Login(BaseModel):

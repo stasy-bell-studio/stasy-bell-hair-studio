@@ -23,6 +23,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?required}
       JWT_SECRET: ${JWT_SECRET:?required}
+      STASY_ALLOWED_WEB_ORIGINS: ${STASY_ALLOWED_WEB_ORIGINS:-}
     depends_on:
       db:
         condition: service_healthy
