@@ -11,5 +11,5 @@ trap collect EXIT
 adb reverse tcp:8000 tcp:8000
 adb logcat -c
 cd "$ROOT/v2/android"
-gradle :app:connectedDebugAndroidTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/
+gradle :app:testDebugUnitTest :app:connectedDebugAndroidTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/
 python "$ROOT/v2/android/scripts/verify-cloud-state.py" | tee "$EVIDENCE/backend-verification.txt"

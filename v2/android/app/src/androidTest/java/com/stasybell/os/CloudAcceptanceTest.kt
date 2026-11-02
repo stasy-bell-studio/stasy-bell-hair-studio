@@ -11,6 +11,8 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import android.os.ParcelFileDescriptor
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -44,6 +46,13 @@ class CloudAcceptanceTest {
     }
 
     private fun screenshot(name: String) {
+        compose.activity.runOnUiThread {
+            val focus = compose.activity.currentFocus
+            val keyboard = compose.activity.getSystemService(Context.INPUT_METHOD_SERVICE)
+                as InputMethodManager
+            keyboard.hideSoftInputFromWindow(focus?.windowToken, 0)
+            focus?.clearFocus()
+        }
         compose.waitForIdle()
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         listOf("mkdir -p /sdcard/acceptance", "screencap -p /sdcard/acceptance/$name.png")
@@ -155,5 +164,8 @@ class CloudAcceptanceTest {
         if (!stock.isDisplayed()) stock.performScrollTo()
         stock.assertIsDisplayed()
         screenshot("11-materials")
+        click("Выход")
+        waitFor("Личный кабинет мастера")
+        screenshot("12-logout")
     }
 }

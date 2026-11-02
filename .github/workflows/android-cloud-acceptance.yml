@@ -82,6 +82,7 @@ jobs:
             v2/android/acceptance-evidence/
             v2/android/app/build/outputs/androidTest-results/
             v2/android/app/build/reports/androidTests/
+            v2/android/app/build/test-results/testDebugUnitTest/
             v2/android/app/build/outputs/apk/debug/app-debug.apk
             ${{ runner.temp }}/backend.log
           if-no-files-found: warn
