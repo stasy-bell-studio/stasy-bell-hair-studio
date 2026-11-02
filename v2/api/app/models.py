@@ -14,6 +14,14 @@ class Base(DeclarativeBase):
     pass
 
 
+class MasterAccount(Base):
+    __tablename__ = "master_accounts"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+
+
 class Client(Base):
     __tablename__ = "clients"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)

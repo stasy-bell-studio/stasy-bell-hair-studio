@@ -1,14 +1,15 @@
-# PostgreSQL 16 schema — migration 0001
+# PostgreSQL schema (Alembic migrations 0001 and 0002)
 
-Source of truth: `../api/alembic/versions/0001_foundation.py`; SQLAlchemy models `../api/app/models.py`.
+Source of truth: `../api/alembic/versions/`; models: `../api/app/models.py`.
 
-- clients: a client may have no phone; messenger IDs optional, never inferred from phone.
-- services: individual length/price variants; price in kopecks; duration nullable pending approval.
-- working_windows: local studio working intervals (Europe/Moscow), no fake availability until set.
-- calendar_entries: both customer appointments and blocked intervals; occupied_until includes service buffer.
-- ex_calendar_no_overlap: GiST exclusion of `tstzrange(starts_at, occupied_until, '[)')` for active calendar states. Database itself arbitrates concurrent inserts.
-- calendar_events: immutable action-history rows; soft-deletion, cancellation and restoration are later API work.
-- confirmation_tokens: only token SHA-256, never plaintext token; 15-minute lifetime enforced in future endpoint.
-- For 45-minute holds, expires are processed by worker and before creating a new booking; until state transition, DB still blocks the range.
+- master_accounts: explicit owner bootstrap; Argon2 password hash; JWT token for owner-only API.
+- clients: no mandatory phone; no automatic Telegram/VK identity inference.
+- services: length/variant-specific prices, nullable until confirmed, times and buffers master-editable later.
+- working_windows: local studio schedule (Europe/Moscow), populated in stage 2.
+- calendar_entries: one authoritative shared timeline for visits and blocks; occupied_until includes the service buffer.
+- ex_calendar_no_overlap: PostgreSQL GiST exclusion `tstzrange(starts_at, occupied_until, '[)')`; rejection under concurrent inserts.
+- calendar_events: action history; later editing/soft deletion must append events.
+- confirmation_tokens: SHA-256 hashes only; stage 3 APIs will apply 15-minute token validity and 45-minute maximum hold.
+- The worker and reservation transaction must transition elapsed holds to expired before they stop blocking time.
 
-Only schema has been created in this stage. Booking/public flows, owner authentication, finance tables, scheduled cleanup, backup-and-restore verification are later work. No real personal data stored.
+Stage 1 does not imply production readiness: restore drills, hardening, login throttling, schedule calculations, cancellation/undo and messenger/webhook verification remain.
