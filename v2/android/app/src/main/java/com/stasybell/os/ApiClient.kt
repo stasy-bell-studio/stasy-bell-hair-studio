@@ -22,7 +22,7 @@ data class VisitItem(val localTime: String, val status: String, val source: Stri
 fun toMoscowOffset(date: String, clock: String): String =
     LocalDateTime.parse("${date}T${clock}")
         .atZone(ZoneId.of("Europe/Moscow"))
-        .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX"))
 
 fun localVisitTime(utcOrOffset: String): String =
     java.time.OffsetDateTime.parse(utcOrOffset)

@@ -69,3 +69,24 @@ jobs:
           docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
             psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
             -c "SELECT count(*) AS restored_calendar_records FROM calendar_entries"
+
+  android:
+    name: Android debug build and unit tests (no publication)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Compile private debug APK and unit tests without upload
+        run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon
