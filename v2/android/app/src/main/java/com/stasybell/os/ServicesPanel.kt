@@ -34,14 +34,23 @@ fun ServicesPanel(
     var buffer by remember { mutableStateOf("0") }
     var message by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var editingId by remember { mutableStateOf<String?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Услуги и длительность", style = MaterialTheme.typography.titleLarge)
         Text("Цены и время задаются мастером; ничего автоматически не добавляется.")
-        services.forEach {
-            Text("${it.name} ${it.variant ?: ""}: " +
-                "${it.priceKopecks?.div(100) ?: "—"} ₽ · ${it.minutes ?: "—"} мин")
+        services.forEach { item ->
+            Text("${item.name} ${item.variant ?: ""}: " +
+                "${item.priceKopecks?.div(100) ?: "—"} ₽ · ${item.minutes ?: "—"} мин")
+            Button(onClick = {
+                editingId = item.id
+                name = item.name; variant = item.variant.orEmpty()
+                price = item.priceKopecks?.div(100)?.toString().orEmpty()
+                duration = item.minutes?.toString().orEmpty()
+                buffer = "0"
+            }) { Text("Изменить · ${item.name}") }
         }
-        Text("Новая услуга", style = MaterialTheme.typography.titleMedium)
+        Text(if (editingId == null) "Новая услуга" else "Редактирование услуги",
+            style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(value = name, onValueChange = { name = it },
             label = { Text("Название") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = variant, onValueChange = { variant = it },
@@ -62,16 +71,21 @@ fun ServicesPanel(
                 if (cost != null && minutes != null && gap != null) scope.launch {
                     busy = true
                     try {
-                        api.createService(token, name.trim(), variant.trim().ifBlank { null },
-                            cost, minutes, gap)
-                        name = ""; variant = ""; price = ""; duration = ""; buffer = "0"
+                        if (editingId == null) {
+                            api.createService(token, name.trim(), variant.trim().ifBlank { null },
+                                cost, minutes, gap)
+                        } else {
+                            api.updateService(token, editingId!!, name.trim(),
+                                variant.trim().ifBlank { null }, cost, minutes, gap)
+                        }
+                        name = ""; variant = ""; price = ""; duration = ""; buffer = "0"; editingId = null
                         message = "Услуга сохранена."
                         onChanged()
                     } catch (ex: Exception) { message = "Ошибка: ${ex.message}" }
                     finally { busy = false }
                 }
             },
-        ) { Text("Сохранить услугу") }
+        ) { Text(if (editingId == null) "Создать услугу" else "Сохранить изменения") }
         if (message.isNotBlank()) Text(message)
     }
 }

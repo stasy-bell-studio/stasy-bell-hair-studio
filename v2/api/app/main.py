@@ -1,5 +1,6 @@
 
 import os
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -88,6 +89,37 @@ def create_service(
 
 
 
+
+
+class UpdateService(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    variant: str | None = Field(default=None, max_length=200)
+    price_kopecks: int | None = Field(default=None, ge=0)
+    duration_minutes: int | None = Field(default=None, gt=0, le=1440)
+    buffer_minutes: int | None = Field(default=None, ge=0, le=1440)
+    active: bool | None = None
+
+
+@app.patch("/owner/services/{service_id}")
+def update_service(
+    service_id: UUID, data: UpdateService,
+    db: Session = Depends(get_db), owner: MasterAccount = Depends(require_owner),
+):
+    service = db.get(Service, service_id)
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+    if not data.model_fields_set:
+        raise HTTPException(status_code=422, detail="No changes supplied")
+    changes = data.model_dump(exclude_unset=True)
+    for required in ("name", "duration_minutes", "buffer_minutes", "active"):
+        if required in changes and changes[required] is None:
+            raise HTTPException(status_code=422, detail="Required service fields cannot be empty")
+    for key, value in changes.items():
+        setattr(service, key, value)
+    if service.active and not service.duration_minutes:
+        raise HTTPException(status_code=422, detail="Active service requires duration")
+    db.commit()
+    return {"id": service.id, "active": service.active}
 
 @app.get("/owner/clients")
 def list_clients(
