@@ -19,3 +19,7 @@
 *.keystore
 *.jks
 local-data/
+
+web/dist/
+android/.gradle/
+android/**/build/

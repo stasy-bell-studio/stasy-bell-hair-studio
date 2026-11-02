@@ -92,3 +92,21 @@ jobs:
           gradle-version: '8.14.3'
       - name: Compile private debug APK and unit tests without upload
         run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon
+
+  web-v2:
+    name: V2 website build and catalog tests (no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install existing locked dependencies
+        run: npm ci
+      - name: Type-check V2 only
+        run: npx tsc --noEmit --project v2/web/tsconfig.json
+      - name: Test prices against live-site catalog
+        run: npx vitest run v2/web/src/prices.test.ts --config v2/web/vite.config.ts
+      - name: Build separate V2 site (no publish)
+        run: npx vite build --config v2/web/vite.config.ts
