@@ -2,7 +2,7 @@
 from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
