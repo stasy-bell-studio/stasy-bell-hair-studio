@@ -22,8 +22,10 @@ android {
 
     val devApiBase = providers.gradleProperty("stasyApiBaseUrl")
         .orElse("https://api.invalid/").get()
-    require(devApiBase.startsWith("https://") && devApiBase.endsWith("/")) {
-        "Android API base must be an HTTPS URL ending in /"
+    val loopbackDebug = devApiBase.startsWith("http://127.0.0.1:") &&
+        gradle.startParameter.taskNames.none { it.contains("Release", ignoreCase = true) }
+    require((devApiBase.startsWith("https://") || loopbackDebug) && devApiBase.endsWith("/")) {
+        "API base must be HTTPS, or 127.0.0.1 in debug-only emulator builds"
     }
     defaultConfig {
         buildConfigField("String", "API_BASE_URL", "\"$devApiBase\"")

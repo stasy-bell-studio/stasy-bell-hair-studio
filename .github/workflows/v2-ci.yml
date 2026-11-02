@@ -97,7 +97,7 @@ jobs:
         with:
           gradle-version: '8.14.3'
       - name: Compile private debug APK and unit tests
-        run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon
+        run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/
       - name: Keep debug APK for emulator acceptance (never publish to Play)
         uses: actions/upload-artifact@v4
         with:

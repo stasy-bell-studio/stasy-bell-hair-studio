@@ -31,7 +31,7 @@ def send_owner_telegram(message: str) -> None:
         )
         if response.status_code != 200 or response.json().get("ok") is not True:
             raise RuntimeError("telegram_delivery_failed")
-    except (httpx.HTTPError, ValueError) as exc:
+    except (httpx.HTTPError, ValueError):
         raise RuntimeError("telegram_delivery_failed") from None
 
 
