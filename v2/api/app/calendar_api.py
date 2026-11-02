@@ -357,3 +357,53 @@ def entry_events(
     return {"events": [{"actor": r.actor, "action": r.action, "before": r.before,
                          "after": r.after, "occurred_at": r.occurred_at.isoformat()}
                         for r in rows]}
+
+
+class ManualBooking(BaseModel):
+    client_name: str | None = Field(default=None, min_length=1, max_length=200)
+    existing_client_id: UUID | None = None
+    service_id: UUID
+    starts_at: datetime
+    source: str = Field(default="phone", pattern="^(phone|telegram_manual|vk_manual|other_manual)$")
+    duration_minutes: int | None = Field(default=None, gt=0, le=1440)
+    quoted_price_kopecks: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate(self):
+        if bool(self.client_name) == bool(self.existing_client_id):
+            raise ValueError("Supply exactly one existing client or new client name")
+        if self.starts_at.tzinfo is None or self.starts_at.utcoffset() is None:
+            raise ValueError("Timezone-aware start required")
+        return self
+
+
+@router.post("/calendar/manual", status_code=201)
+def create_atomic_manual_booking(
+    data: ManualBooking, db: Session = Depends(get_db),
+    owner: MasterAccount = Depends(require_owner),
+):
+    """Create new client and visit atomically: a slot conflict leaves no orphan client."""
+    timeline_lock(db)
+    expire_holds(db)
+    service = get_active_service(db, data.service_id)
+    minutes = data.duration_minutes or service.duration_minutes
+    end, occupied = calculate_times(data.starts_at, minutes, service.buffer_minutes)
+    require_working_window(db, data.starts_at, occupied)
+    if data.existing_client_id:
+        client = db.get(Client, data.existing_client_id)
+        if client is None:
+            raise HTTPException(status_code=422, detail="Unknown client")
+    else:
+        client = Client(name=data.client_name)
+        db.add(client)
+        db.flush()
+    price = (service.price_kopecks if "quoted_price_kopecks" not in data.model_fields_set
+             else data.quoted_price_kopecks)
+    entry = CalendarEntry(
+        kind="appointment", client_id=client.id, service_id=service.id,
+        source=data.source, status="confirmed", starts_at=data.starts_at,
+        ends_at=end, occupied_until=occupied,
+        duration_minutes=minutes, quoted_price_kopecks=price,
+    )
+    return {"id": commit_entry(db, entry, str(owner.id), "created_manual", None),
+            "status": "confirmed", "client_id": client.id}

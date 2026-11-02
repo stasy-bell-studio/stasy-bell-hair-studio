@@ -77,6 +77,30 @@ def create_service(
 
 
 
+
+
+@app.get("/owner/clients")
+def list_clients(
+    db: Session = Depends(get_db), owner: MasterAccount = Depends(require_owner),
+):
+    rows = db.scalars(select(Client).order_by(Client.name, Client.created_at)).all()
+    return {"clients": [{"id": item.id, "name": item.name, "phone": item.phone}
+                        for item in rows]}
+
+
+@app.get("/owner/services")
+def list_services(
+    db: Session = Depends(get_db), owner: MasterAccount = Depends(require_owner),
+):
+    rows = db.scalars(select(Service).order_by(Service.name, Service.variant)).all()
+    return {"services": [{
+        "id": item.id, "name": item.name, "variant": item.variant,
+        "price_kopecks": item.price_kopecks,
+        "duration_minutes": item.duration_minutes,
+        "buffer_minutes": item.buffer_minutes, "active": item.active,
+    } for item in rows]}
+
+
 app.include_router(calendar_router)
 app.include_router(public_router)
 app.include_router(messenger_router)
