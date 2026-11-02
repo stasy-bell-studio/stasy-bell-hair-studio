@@ -133,6 +133,13 @@ class CloudAcceptanceTest {
         waitFor("completed · phone")
         screenshot("09-completed")
 
+        click("Клиенты")
+        waitFor("Synthetic Completed")
+        val client = compose.onNodeWithText("Synthetic Completed")
+        if (!client.isDisplayed()) client.performScrollTo()
+        client.assertIsDisplayed()
+        screenshot("09-clients")
+
         click("Финансы")
         waitFor("Поступления: 0,00 ₽")
         enter("Сумма в целых рублях", "1500")
