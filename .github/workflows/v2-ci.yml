@@ -96,8 +96,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14.3'
-      - name: Compile private debug APK and unit tests without upload
+      - name: Compile private debug APK and unit tests
         run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon
+      - name: Keep debug APK for emulator acceptance (never publish to Play)
+        uses: actions/upload-artifact@v4
+        with:
+          name: stasy-bell-v2-emulator-debug
+          path: v2/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 3
 
   web-v2:
     name: V2 website build and catalog tests (no deployment)

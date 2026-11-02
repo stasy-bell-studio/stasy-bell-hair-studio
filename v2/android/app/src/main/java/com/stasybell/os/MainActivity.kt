@@ -118,7 +118,7 @@ fun MasterApp() {
         }
     } else {
         val activeToken = token ?: return
-        val tabs = listOf("Сегодня", "Календарь", "Клиенты", "+ Запись", "Финансы")
+        val tabs = listOf("Сегодня", "Календарь", "График", "Клиенты", "+ Запись", "Финансы", "Материалы")
         Scaffold(
             bottomBar = {
                 NavigationBar {
@@ -159,10 +159,12 @@ fun MasterApp() {
                         Text("Всего записей на 8 дней: ${visits.size}")
                     }
                     "Календарь" -> {
-                        Text("Календарь на 8 дней", style = MaterialTheme.typography.titleLarge)
-                        visits.forEach { visit ->
-                            Text("${visit.localTime} · ${visit.status} · ${visit.source}")
+                        CalendarPanel(api, activeToken, visits, clients, services) {
+                            refresh(activeToken)
                         }
+                    }
+                    "График" -> {
+                        SchedulePanel(api, activeToken) { refresh(activeToken) }
                     }
                     "Клиенты" -> {
                         Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
@@ -170,6 +172,9 @@ fun MasterApp() {
                     }
                     "Финансы" -> {
                         FinancePanel(api = api, token = activeToken)
+                    }
+                    "Материалы" -> {
+                        MaterialsPanel(api, activeToken)
                     }
                     else -> {
                         ManualBookingForm(

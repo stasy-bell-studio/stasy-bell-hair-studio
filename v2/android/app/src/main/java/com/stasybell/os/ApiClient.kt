@@ -24,7 +24,13 @@ data class CashSummary(
     val isClosed: Boolean,
 )
 
-data class VisitItem(val localTime: String, val status: String, val source: String)
+data class VisitItem(
+    val id: String, val clientId: String?, val serviceId: String?,
+    val startsAt: String, val localTime: String, val status: String,
+    val source: String, val kind: String,
+)
+data class WorkingTime(val start: String, val end: String)
+data class MaterialItem(val id: String, val name: String, val unit: String, val milliunits: Long)
 
 fun toMoscowOffset(date: String, clock: String): String =
     LocalDateTime.parse("${date}T${clock}")
@@ -122,9 +128,14 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             VisitItem(
-                localVisitTime(row.getString("starts_at")),
-                row.getString("status"),
-                row.getString("source"),
+                id = row.getString("id"),
+                clientId = row.optString("client_id").takeIf { it.isNotBlank() && it != "null" },
+                serviceId = row.optString("service_id").takeIf { it.isNotBlank() && it != "null" },
+                startsAt = row.getString("starts_at"),
+                localTime = localVisitTime(row.getString("starts_at")),
+                status = row.getString("status"),
+                source = row.getString("source"),
+                kind = row.getString("kind"),
             )
         }
     }
@@ -137,5 +148,65 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
             .put("starts_at", toMoscowOffset(date, clock))
             .put("source", "phone")
         return call("POST", "owner/calendar/manual", body, token).getString("id")
+    }
+
+    suspend fun schedule(token: String, day: String): List<WorkingTime> {
+        val rows = call("GET", "owner/schedule/$day", token = token).getJSONArray("windows")
+        return (0 until rows.length()).map { index ->
+            val r = rows.getJSONObject(index)
+            WorkingTime(r.getString("starts_at"), r.getString("ends_at"))
+        }
+    }
+
+    suspend fun setSchedule(token: String, day: String, windows: List<WorkingTime>) {
+        val rows = JSONArray()
+        windows.forEach { rows.put(JSONObject().put("starts_at", it.start).put("ends_at", it.end)) }
+        call("PUT", "owner/schedule/$day", JSONObject().put("windows", rows), token)
+    }
+
+    suspend fun moveVisit(token: String, id: String, day: String, clock: String) {
+        call("PATCH", "owner/calendar/$id/move",
+             JSONObject().put("starts_at", toMoscowOffset(day, clock)), token)
+    }
+
+    suspend fun updateVisitStatus(token: String, id: String, status: String) {
+        call("POST", "owner/calendar/$id/status", JSONObject().put("status", status), token)
+    }
+
+    suspend fun cancelVisit(token: String, id: String) {
+        call("POST", "owner/calendar/$id/cancel", token = token)
+    }
+
+    suspend fun deleteVisit(token: String, visit: VisitItem, currentClientName: String) {
+        val body = JSONObject().put("confirm", true)
+            .put("expected_start", visit.startsAt)
+            .put("expected_client_name", currentClientName)
+            .put("completed_acknowledged", visit.status == "completed")
+        call("POST", "owner/calendar/${visit.id}/delete", body, token)
+    }
+
+    suspend fun addBlock(token: String, day: String, start: String, end: String) {
+        val body = JSONObject()
+            .put("starts_at", toMoscowOffset(day, start))
+            .put("ends_at", toMoscowOffset(day, end))
+        call("POST", "owner/calendar/blocks", body, token)
+    }
+
+    suspend fun materials(token: String): List<MaterialItem> {
+        val rows = call("GET", "owner/materials", token = token).getJSONArray("materials")
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            MaterialItem(row.getString("id"), row.getString("name"),
+                row.getString("unit"), row.getLong("stock_milliunits"))
+        }
+    }
+
+    suspend fun newMaterial(token: String, name: String, unit: String) {
+        call("POST", "owner/materials", JSONObject().put("name", name).put("unit", unit), token)
+    }
+
+    suspend fun adjustStock(token: String, id: String, changeMilliunits: Long, reason: String) {
+        val body = JSONObject().put("change_milliunits", changeMilliunits).put("reason", reason)
+        call("POST", "owner/materials/$id/movement", body, token)
     }
 }
