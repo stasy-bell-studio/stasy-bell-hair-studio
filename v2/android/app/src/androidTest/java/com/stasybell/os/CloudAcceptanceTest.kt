@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import android.os.ParcelFileDescriptor
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -45,8 +46,11 @@ class CloudAcceptanceTest {
     private fun screenshot(name: String) {
         compose.waitForIdle()
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        automation.executeShellCommand("mkdir -p /sdcard/acceptance").close()
-        automation.executeShellCommand("screencap -p /sdcard/acceptance/$name.png").close()
+        listOf("mkdir -p /sdcard/acceptance", "screencap -p /sdcard/acceptance/$name.png")
+            .forEach { command ->
+                ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))
+                    .use { it.readBytes() }
+            }
     }
 
     private fun book(client: String, time: String, day: String) {
@@ -125,6 +129,11 @@ class CloudAcceptanceTest {
         enter("Сумма в целых рублях", "1500")
         click("Записать фактическую операцию")
         waitFor("Поступления: 1500,00 ₽")
+        click("Доход — переключить на расход")
+        enter("Сумма в целых рублях", "300")
+        click("Записать фактическую операцию")
+        waitFor("Расходы: 300,00 ₽")
+        waitFor("Денежная разница: 1200,00 ₽")
         screenshot("10-finance")
 
         click("Материалы")
@@ -137,7 +146,14 @@ class CloudAcceptanceTest {
         enter("Причина: закупка / процедура", "Synthetic purchase")
         click("Добавить на склад")
         waitFor("Synthetic material: 25.0 g")
+        click("Изменить остаток · Synthetic material")
+        enter("Количество g (например 25,5)", "5")
+        enter("Причина: закупка / процедура", "Synthetic usage")
+        click("Списать со склада")
+        waitFor("Synthetic material: 20.0 g")
+        val stock = compose.onNodeWithText("Synthetic material: 20.0 g")
+        if (!stock.isDisplayed()) stock.performScrollTo()
+        stock.assertIsDisplayed()
         screenshot("11-materials")
-        compose.onNodeWithText("Synthetic material: 25.0 g").assertIsDisplayed()
     }
 }
