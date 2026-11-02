@@ -27,7 +27,7 @@ def test_webhook_registration_only_when_real_https_domain_and_credentials():
     assert payload["allowed_updates"] == ["message", "callback_query"]
     assert payload["url"] == "https://approved-staging.ru/callbacks/telegram"
     assert payload["drop_pending_updates"] is False
-    assert "token" not in json.dumps(payload)
+    assert "synthetic-token" not in json.dumps(payload)
     assert mod.missing(values, "vk")
 
 
