@@ -137,3 +137,74 @@ class PublicRateEvent(Base):
     identity_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     action: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FinanceTransaction(Base):
+    __tablename__ = "finance_transactions"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    entry_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("calendar_entries.id", ondelete="RESTRICT")
+    )
+    kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    category: Mapped[str] = mapped_column(String(40), nullable=False)
+    amount_kopecks: Mapped[int] = mapped_column(Integer, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    correction_of_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("finance_transactions.id", ondelete="RESTRICT"),
+        unique=True,
+    )
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        CheckConstraint("kind IN ('income','expense')", name="valid_finance_kind"),
+        CheckConstraint("amount_kopecks > 0", name="positive_finance_amount"),
+    )
+
+
+class MonthClosure(Base):
+    __tablename__ = "month_closures"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    income_kopecks: Mapped[int] = mapped_column(Integer, nullable=False)
+    expense_kopecks: Mapped[int] = mapped_column(Integer, nullable=False)
+    balance_kopecks: Mapped[int] = mapped_column(Integer, nullable=False)
+    closed_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reopened_by: Mapped[str | None] = mapped_column(String(80))
+    reopen_reason: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (
+        UniqueConstraint("year", "month", "version", name="uq_month_closure_version"),
+        CheckConstraint("month BETWEEN 1 AND 12 AND version > 0", name="valid_closure_period"),
+    )
+
+
+class Material(Base):
+    __tablename__ = "materials"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    unit: Mapped[str] = mapped_column(String(8), nullable=False)
+    stock_milliunits: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    __table_args__ = (
+        CheckConstraint("unit IN ('g','ml','pcs')", name="valid_material_unit"),
+        CheckConstraint("stock_milliunits >= 0", name="nonnegative_material_stock"),
+    )
+
+
+class MaterialMovement(Base):
+    __tablename__ = "material_movements"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    material_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("materials.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    change_milliunits: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        CheckConstraint("change_milliunits <> 0", name="nonzero_material_movement"),
+    )

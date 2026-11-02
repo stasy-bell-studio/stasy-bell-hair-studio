@@ -8,6 +8,7 @@ from app.auth import make_access_token, require_owner, verify_login
 from app.calendar_api import router as calendar_router
 from app.public_booking import router as public_router
 from app.messenger_webhooks import router as messenger_router
+from app.finance_api import router as finance_router
 from app.db import get_db
 from app.models import Client, MasterAccount, Service
 
@@ -104,3 +105,4 @@ def list_services(
 app.include_router(calendar_router)
 app.include_router(public_router)
 app.include_router(messenger_router)
+app.include_router(finance_router)
