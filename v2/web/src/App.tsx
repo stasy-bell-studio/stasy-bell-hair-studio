@@ -23,6 +23,7 @@ function Booking() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [hold, setHold] = useState<Hold | null>(null);
+  const [holdStatus, setHoldStatus] = useState("pending_channel");
   const configured = Boolean(API_URL);
 
   useEffect(() => {
@@ -46,6 +47,26 @@ function Booking() {
     return () => { stale = true; };
   }, [serviceId, day, configured]);
 
+  useEffect(() => {
+    if (!hold || !configured || holdStatus !== "pending_channel") return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const result = await requestApi<{ status: string }>(
+          `/public/holds/${hold.id}/status`, {
+            method: "POST", body: JSON.stringify({ hold_secret: hold.hold_secret }),
+          },
+        );
+        if (active) setHoldStatus(result.status);
+      } catch {
+        // Network errors never imply confirmation.
+      }
+    };
+    const timer = window.setInterval(poll, 15000);
+    void poll();
+    return () => { active = false; window.clearInterval(timer); };
+  }, [hold, configured, holdStatus]);
+
   async function reserve() {
     if (!serviceId || !slot || !name.trim() || !consent) return;
     setBusy(true);
@@ -60,6 +81,7 @@ function Booking() {
         }),
       });
       setHold(response);
+      setHoldStatus("pending_channel");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось создать заявку.");
     } finally {
@@ -148,20 +170,28 @@ function Booking() {
           {configured && hold && (
             <div className="hold-detail" role="status">
               <span className="eyebrow">ВРЕМЕННАЯ БРОНЬ</span>
-              <h3>Осталось подтвердить запись</h3>
-              <p>Интервал удерживается до <strong>{clockMoscow(hold.hold_until)}</strong>.</p>
-              <p>Код действует до <strong>{clockMoscow(hold.confirmation_token_expires_at)}</strong>.</p>
-              {hold.channel_link && (
+              <h3>{holdStatus === "confirmed" ? "Запись подтверждена!" :
+                holdStatus === "pending_channel" ? "Осталось подтвердить запись" :
+                "Бронь завершена"}</h3>
+              {holdStatus === "confirmed" ? <p>Подтверждение получено. Ждём вас!</p> :
+                holdStatus === "pending_channel" ?
+                <p>Интервал удерживается до <strong>{clockMoscow(hold.hold_until)}</strong>.</p> :
+                <p>Выберите другое свободное время.</p>}
+              {holdStatus === "pending_channel" &&
+                <p>Код действует до <strong>{clockMoscow(hold.confirmation_token_expires_at)}</strong>.</p>}
+              {holdStatus === "pending_channel" && hold.channel_link && (
                 <a className="button primary wide" href={hold.channel_link} target="_blank" rel="noreferrer">
                   Открыть {hold.channel === "telegram" ? "Telegram-бота" : "сообщество VK"}
                 </a>
               )}
-              {hold.channel_instruction && <p className="code-instruction">{hold.channel_instruction}</p>}
-              {!hold.channel_link && <p>Подключение канала ещё не завершено. Эта заявка пока не подтверждена.</p>}
-              <p className="fineprint">Код: <code>{hold.channel_confirmation_code}</code>. Не передавайте его посторонним.</p>
-              <button className="button secondary wide" type="button" onClick={reissue} disabled={busy}>
-                Обновить код (если истёк)
-              </button>
+              {holdStatus === "pending_channel" && hold.channel_instruction && <p className="code-instruction">{hold.channel_instruction}</p>}
+              {holdStatus === "pending_channel" && !hold.channel_link && <p>Подключение канала ещё не завершено. Эта заявка пока не подтверждена.</p>}
+              {holdStatus === "pending_channel" &&
+                <p className="fineprint">Код: <code>{hold.channel_confirmation_code}</code>. Не передавайте его посторонним.</p>}
+              {holdStatus === "pending_channel" &&
+                <button className="button secondary wide" type="button" onClick={reissue} disabled={busy}>
+                  Обновить код (если истёк)
+                </button>}
             </div>
           )}
           {error && <p className="form-error" role="alert">{error}</p>}

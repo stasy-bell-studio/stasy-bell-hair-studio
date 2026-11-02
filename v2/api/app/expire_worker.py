@@ -4,6 +4,7 @@ import signal
 import time
 
 from app.db import get_session_factory
+from app.owner_notifications import process_owner_notifications
 from app.scheduling import expire_holds, timeline_lock
 
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +25,7 @@ def run():
                 timeline_lock(db)
                 expire_holds(db)
                 db.commit()
+                process_owner_notifications(db)
         except Exception:
             logging.exception("Hold expiry cycle failed")
         for _ in range(30):

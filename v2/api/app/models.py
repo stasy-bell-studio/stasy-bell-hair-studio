@@ -208,3 +208,25 @@ class MaterialMovement(Base):
     __table_args__ = (
         CheckConstraint("change_milliunits <> 0", name="nonzero_material_movement"),
     )
+
+
+class OwnerNotification(Base):
+    __tablename__ = "owner_notifications"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    entry_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("calendar_entries.id", ondelete="RESTRICT"), nullable=False,
+    )
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'pending'"))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        UniqueConstraint("entry_id", "event_type", name="uq_owner_notification_once"),
+        CheckConstraint("state IN ('pending','sent','stopped')", name="valid_owner_notification_state"),
+        CheckConstraint("attempts >= 0", name="nonnegative_delivery_attempts"),
+    )

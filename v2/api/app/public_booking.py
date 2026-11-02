@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db, get_session_factory
 from app.models import (
-    CalendarEntry, CalendarEvent, Client, ConfirmationToken, PublicRateEvent, Service,
+    CalendarEntry, CalendarEvent, Client, ConfirmationToken, OwnerNotification, PublicRateEvent, Service,
     WorkingWindow,
 )
 from app.scheduling import (
@@ -279,5 +279,32 @@ def confirm_token(db: Session, raw: str, channel: str, provider_user_id: str) ->
         raise HTTPException(status_code=422, detail="Unsupported channel")
     db.add(CalendarEvent(entry_id=entry.id, actor=channel + ":" + provider_user_id,
                          action="confirmed", before=before, after=snapshot(entry)))
+    # Outbox entry commits atomically with the confirmation. Replayed callbacks cannot duplicate it.
+    db.add(OwnerNotification(entry_id=entry.id, event_type="appointment_confirmed", state="pending"))
     db.commit()
     return {"id": entry.id, "status": "confirmed", "repeated": False}
+
+
+@router.post("/public/holds/{entry_id}/status")
+def hold_status(
+    entry_id: UUID, data: ReissueRequest, request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return only a private hold's state; no client PII or confirmation code."""
+    require_public_enabled()
+    rate_limit(request, "status", max_events=30, seconds=60)
+    entry = db.scalar(select(CalendarEntry).where(
+        CalendarEntry.id == entry_id, CalendarEntry.source == "website",
+    ))
+    supplied = digest(data.hold_secret)
+    stored = entry.hold_access_sha256 if entry else "0" * 64
+    if not hmac.compare_digest(supplied, stored) or entry is None:
+        raise HTTPException(status_code=404, detail="Booking request not found")
+    if (entry.status == "pending_channel" and
+            entry.hold_until <= datetime.now(UTC)):
+        timeline_lock(db)
+        db.refresh(entry, with_for_update=True)
+        if entry.status == "pending_channel" and entry.hold_until <= datetime.now(UTC):
+            entry.status = "expired"
+            db.commit()
+    return {"id": entry.id, "status": entry.status, "hold_until": entry.hold_until}

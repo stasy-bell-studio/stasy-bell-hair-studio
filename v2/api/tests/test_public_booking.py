@@ -198,3 +198,39 @@ def test_public_rate_limit(api, public_setup):
         r = submit(api, service, day, hour=hour)
         assert r.status_code == 201, r.text
     assert submit(api, service, day, hour=16).status_code == 429
+
+
+def test_public_status_owner_alert_and_retry(api, public_setup, monkeypatch):
+    from app.models import OwnerNotification
+    from app.owner_notifications import process_owner_notifications
+    service, day = public_setup
+    held = submit(api, service, day).json()
+    url = f"/public/holds/{held['id']}/status"
+    body = {"hold_secret": held["hold_secret"]}
+    assert api.post(url, json={"hold_secret": "x" * 35}).status_code == 404
+    pending = api.post(url, json=body)
+    assert pending.json()["status"] == "pending_channel"
+    assert "phone" not in pending.text and "client" not in pending.text
+    with get_session_factory()() as db:
+        confirm_token(db, held["channel_confirmation_code"], "telegram", "123")
+        confirm_token(db, held["channel_confirmation_code"], "telegram", "123")
+        items = db.scalars(select(OwnerNotification)).all()
+        assert len(items) == 1 and items[0].state == "pending"
+        assert process_owner_notifications(db, send=lambda m: None) == 0
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "fake-test-token")
+    monkeypatch.setenv("TELEGRAM_OWNER_CHAT_ID", "fake-123")
+    with get_session_factory()() as db:
+        def fail_once(message):
+            raise RuntimeError("synthetic provider outage")
+        assert process_owner_notifications(db, send=fail_once) == 1
+        row = db.scalar(select(OwnerNotification))
+        assert row.state == "pending" and row.attempts == 1
+        assert process_owner_notifications(db, send=fail_once) == 0
+        row.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+        db.commit()
+        messages = []
+        assert process_owner_notifications(db, send=messages.append) == 1
+        assert "Synthetic customer" in messages[0]
+        assert db.scalar(select(OwnerNotification)).state == "sent"
+        assert process_owner_notifications(db, send=messages.append) == 0
+    assert api.post(url, json=body).json()["status"] == "confirmed"
