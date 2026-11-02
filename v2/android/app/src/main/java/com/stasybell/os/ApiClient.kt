@@ -17,6 +17,13 @@ data class ServiceItem(
     val minutes: Int?, val priceKopecks: Int?,
 )
 data class ClientItem(val id: String, val name: String)
+data class CashSummary(
+    val incomeKopecks: Long,
+    val expenseKopecks: Long,
+    val balanceKopecks: Long,
+    val isClosed: Boolean,
+)
+
 data class VisitItem(val localTime: String, val status: String, val source: String)
 
 fun toMoscowOffset(date: String, clock: String): String =
@@ -59,6 +66,28 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         } finally {
             connection.disconnect()
         }
+    }
+
+    suspend fun financeSummary(token: String, year: Int, month: Int): CashSummary {
+        val result = call("GET", "owner/finances/summary?year=$year&month=$month",
+            token = token)
+        return CashSummary(
+            result.getLong("income_kopecks"), result.getLong("expense_kopecks"),
+            result.getLong("balance_kopecks"), result.getBoolean("is_closed"),
+        )
+    }
+
+    suspend fun addCash(
+        token: String, kind: String, category: String, amountKopecks: Long,
+    ) {
+        val occurredAt = java.time.OffsetDateTime.now(ZoneId.of("Europe/Moscow"))
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+        val body = JSONObject()
+            .put("kind", kind)
+            .put("category", category)
+            .put("amount_kopecks", amountKopecks)
+            .put("occurred_at", occurredAt)
+        call("POST", "owner/finances/transactions", body, token)
     }
 
     suspend fun login(user: String, password: String): String =

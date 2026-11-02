@@ -118,7 +118,7 @@ fun MasterApp() {
         }
     } else {
         val activeToken = token ?: return
-        val tabs = listOf("Сегодня", "Календарь", "Клиенты", "+ Запись")
+        val tabs = listOf("Сегодня", "Календарь", "Клиенты", "+ Запись", "Финансы")
         Scaffold(
             bottomBar = {
                 NavigationBar {
@@ -167,6 +167,9 @@ fun MasterApp() {
                     "Клиенты" -> {
                         Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
                         clients.forEach { client -> Text(client.name) }
+                    }
+                    "Финансы" -> {
+                        FinancePanel(api = api, token = activeToken)
                     }
                     else -> {
                         ManualBookingForm(
