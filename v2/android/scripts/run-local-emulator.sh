@@ -35,6 +35,21 @@ grep -qx 'STASY_PUBLIC_BOOKING_ENABLED=0' "$ENVFILE" || {
 }
 "${COMPOSE[@]}" up -d --build db api
 "${COMPOSE[@]}" exec -T api alembic upgrade head
+# One-time private owner setup; never use customer credentials.
+if ! "${COMPOSE[@]}" exec -T api python -c 'from app.db import get_session_factory; from app.models import MasterAccount; from sqlalchemy import select; import sys; s=get_session_factory()(); exists=s.scalar(select(MasterAccount.id).limit(1)); s.close(); sys.exit(0 if exists else 1)'; then
+  read -r -p "Test owner login: " STASY_LOGIN
+  read -r -s -p "Test owner password (14+ characters): " STASY_PASS
+  echo
+  if [[ -z "$STASY_LOGIN" || ${#STASY_PASS} -lt 14 ]]; then
+    echo "Invalid credentials; no owner account created." >&2
+    exit 1
+  fi
+  "${COMPOSE[@]}" exec -T -e MASTER_BOOTSTRAP_USERNAME="$STASY_LOGIN" \
+      -e MASTER_BOOTSTRAP_PASSWORD="$STASY_PASS" api python -m app.bootstrap_owner
+  unset STASY_LOGIN STASY_PASS
+else
+  echo "Emulator master account already exists. Use its existing login."
+fi
 if [[ -z "${1:-}" ]]; then
     echo "API at http://127.0.0.1:8000/ready. Pass extracted app-debug.apk as the first argument to install."
     echo "The APK must be a DEBUG build targeting http://127.0.0.1:8000/."

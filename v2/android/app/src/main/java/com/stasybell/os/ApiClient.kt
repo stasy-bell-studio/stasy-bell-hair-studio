@@ -209,4 +209,15 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         val body = JSONObject().put("change_milliunits", changeMilliunits).put("reason", reason)
         call("POST", "owner/materials/$id/movement", body, token)
     }
+
+    suspend fun createService(token: String, name: String, variant: String?,
+                              priceKopecks: Int, duration: Int, buffer: Int) {
+        val body = JSONObject()
+            .put("code", "owner-" + java.util.UUID.randomUUID())
+            .put("name", name).put("variant", variant)
+            .put("price_kopecks", priceKopecks)
+            .put("duration_minutes", duration).put("buffer_minutes", buffer)
+            .put("active", true)
+        call("POST", "owner/services", body, token)
+    }
 }

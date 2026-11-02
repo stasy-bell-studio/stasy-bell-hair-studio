@@ -3,6 +3,7 @@ package com.stasybell.os
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,8 +18,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -118,15 +117,15 @@ fun MasterApp() {
         }
     } else {
         val activeToken = token ?: return
-        val tabs = listOf("Сегодня", "Календарь", "График", "Клиенты", "+ Запись", "Финансы", "Материалы")
+        val tabs = listOf("Сегодня", "Календарь", "График", "Клиенты", "Услуги", "+ Запись", "Финансы", "Материалы")
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     tabs.forEach { tab ->
-                        NavigationBarItem(
-                            selected = page == tab, onClick = { page = tab },
-                            icon = { Text("•") }, label = { Text(tab) },
-                        )
+                        Button(onClick = { page = tab }, enabled = page != tab) { Text(tab) }
                     }
                 }
             },
@@ -169,6 +168,9 @@ fun MasterApp() {
                     "Клиенты" -> {
                         Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
                         clients.forEach { client -> Text(client.name) }
+                    }
+                    "Услуги" -> {
+                        ServicesPanel(api, activeToken, services) { refresh(activeToken) }
                     }
                     "Финансы" -> {
                         FinancePanel(api = api, token = activeToken)
