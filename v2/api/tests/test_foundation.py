@@ -111,3 +111,10 @@ def test_elapsed_pending_hold_is_released_in_booking_transaction(api, owner_toke
     with get_session_factory()() as session:
         pending = session.scalar(select(CalendarEntry).where(CalendarEntry.source == "website"))
         assert pending.status == "expired"
+
+
+def test_owner_login_is_rate_limited(api):
+    payload = {"username": "unknown-test-user", "password": "fake-wrong-password"}
+    for _ in range(10):
+        assert api.post("/auth/login", json=payload).status_code == 401
+    assert api.post("/auth/login", json=payload).status_code == 429

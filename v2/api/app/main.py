@@ -2,7 +2,7 @@
 import os
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import make_access_token, require_owner, verify_login
 from app.calendar_api import router as calendar_router
-from app.public_booking import router as public_router
+from app.public_booking import router as public_router, rate_limit
 from app.messenger_webhooks import router as messenger_router
 from app.finance_api import router as finance_router
 from app.db import get_db
@@ -57,7 +57,8 @@ def ready(db: Session = Depends(get_db)):
 
 
 @app.post("/auth/login")
-def login(data: Login, db: Session = Depends(get_db)):
+def login(data: Login, request: Request, db: Session = Depends(get_db)):
+    rate_limit(request, "owner_login", max_events=10, seconds=600)
     owner = verify_login(db, data.username, data.password)
     if owner is None:
         raise HTTPException(status_code=401, detail="Invalid credentials")
