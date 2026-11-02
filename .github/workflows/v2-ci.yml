@@ -47,3 +47,25 @@ jobs:
       - run: ruff check app tests alembic
       - run: alembic upgrade head
       - run: pytest -q
+      - name: Prove PostgreSQL backup can be restored (synthetic DB only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # PostgreSQL client tooling runs in the same major version as server.
+          docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
+            pg_dump -h 127.0.0.1 -U ci_stasy -d stasy_test -Fc > "$RUNNER_TEMP/stasy_ci.dump"
+          test -s "$RUNNER_TEMP/stasy_ci.dump"
+          docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
+            psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_test \
+            -c "CREATE DATABASE stasy_restore_test"
+          docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret \
+            -v "$RUNNER_TEMP:/backup:ro" postgres:16 \
+            pg_restore --exit-on-error --no-owner --no-acl -h 127.0.0.1 -U ci_stasy \
+            -d stasy_restore_test /backup/stasy_ci.dump
+          restored=$(docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
+            psql -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
+            -c "SELECT version_num FROM alembic_version")
+          test "$restored" = "0002_master_account"
+          docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
+            psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
+            -c "SELECT count(*) AS restored_calendar_records FROM calendar_entries"
