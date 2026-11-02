@@ -1,13 +1,14 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Barrier
+from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.booking import persist_entry
 from app.db import get_session_factory
-from app.models import CalendarEntry, Client, Service
+from app.models import CalendarEntry
 
 
 def setup_visit(api, token):
@@ -61,7 +62,7 @@ def test_two_simultaneous_bookings_never_both_win(api, owner_token):
             barrier.wait(timeout=10)
             try:
                 return persist_entry(session, CalendarEntry(
-                    kind="appointment", client_id=client_id, service_id=service_id,
+                    kind="appointment", client_id=UUID(client_id), service_id=UUID(service_id),
                     source="phone", status="confirmed", starts_at=start,
                     ends_at=start + timedelta(hours=2),
                     occupied_until=start + timedelta(hours=2, minutes=15),
@@ -80,7 +81,7 @@ def test_elapsed_pending_hold_is_released_in_booking_transaction(api, owner_toke
     start = datetime.now(timezone.utc) + timedelta(days=3)
     with get_session_factory()() as session:
         session.add(CalendarEntry(
-            kind="appointment", client_id=client_id, service_id=service_id,
+            kind="appointment", client_id=UUID(client_id), service_id=UUID(service_id),
             source="website", status="pending_channel",
             starts_at=start, ends_at=start + timedelta(hours=2),
             occupied_until=start + timedelta(hours=2, minutes=15),

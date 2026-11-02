@@ -25,11 +25,12 @@ def migrated_database():
 
 @pytest.fixture(autouse=True)
 def reset_database(migrated_database):
-    with get_session_factory()().begin() as db:
-        db.execute(text(
-            "TRUNCATE calendar_events, confirmation_tokens, calendar_entries, "
-            "master_accounts, clients, services, working_windows CASCADE"
-        ))
+    with get_session_factory()() as db:
+        with db.begin():
+            db.execute(text(
+                "TRUNCATE calendar_events, confirmation_tokens, calendar_entries, "
+                "master_accounts, clients, services, working_windows CASCADE"
+            ))
 
 
 @pytest.fixture

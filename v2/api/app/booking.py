@@ -25,10 +25,10 @@ def expire_elapsed_holds(db: Session) -> None:
 def persist_entry(db: Session, entry: CalendarEntry, actor: str) -> UUID:
     expire_elapsed_holds(db)
     db.add(entry)
-    db.flush()
-    db.add(CalendarEvent(entry_id=entry.id, actor=actor, action="created",
-                         before=None, after={"kind": entry.kind, "status": entry.status}))
     try:
+        db.flush()
+        db.add(CalendarEvent(entry_id=entry.id, actor=actor, action="created",
+                             before=None, after={"kind": entry.kind, "status": entry.status}))
         db.commit()
     except IntegrityError as exc:
         db.rollback()
