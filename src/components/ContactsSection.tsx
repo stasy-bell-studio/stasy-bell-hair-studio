@@ -58,10 +58,10 @@ const ContactsSection = () => (
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Адрес</p>
-                <p className="text-foreground font-medium leading-snug">г. Аксай, ул. Садовая, д. 31</p>
-                <p className="text-sm text-muted-foreground">подъезд 7, офис 3</p>
+                <p className="text-foreground font-medium leading-snug">г. Санкт-Петербург, ул. Ольги Берггольц, д. 9</p>
+                <p className="text-sm text-muted-foreground">корпус 2</p>
                 <a
-                  href="https://yandex.ru/maps/?text=Аксай+ул+Садовая+31"
+                  href="https://yandex.ru/maps/?text=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%20%D0%9E%D0%BB%D1%8C%D0%B3%D0%B8%20%D0%91%D0%B5%D1%80%D0%B3%D0%B3%D0%BE%D0%BB%D1%8C%D1%86%2C%209%2C%20%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81%202"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-primary mt-2 hover:underline"
@@ -133,7 +133,7 @@ const ContactsSection = () => (
         <AnimatedSection delay={0.2}>
           <div className="rounded-2xl overflow-hidden shadow-sm border border-secondary h-[420px] lg:h-full min-h-[380px]">
             <iframe
-              src="https://yandex.ru/map-widget/v1/?text=%D0%90%D0%BA%D1%81%D0%B0%D0%B9%2C+%D1%83%D0%BB.+%D0%A1%D0%B0%D0%B4%D0%BE%D0%B2%D0%B0%D1%8F%2C+%D0%B4.+31&z=16&l=map"
+              src="https://yandex.ru/map-widget/v1/?text=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%20%D0%9E%D0%BB%D1%8C%D0%B3%D0%B8%20%D0%91%D0%B5%D1%80%D0%B3%D0%B3%D0%BE%D0%BB%D1%8C%D1%86%2C%209%2C%20%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81%202&z=16&l=map"
               width="100%"
               height="100%"
               style={{ border: 0, display: "block" }}

@@ -25,7 +25,7 @@ const HeroSection = () => {
             Волосы, в которые влюбляешься заново
           </p>
           <p className="text-lg font-normal text-muted-foreground mt-3 mb-10">
-            Кератин · Ботокс · Прикорневой объём · Лечение — премиальными составами в Аксае
+            Кератин · Ботокс · Прикорневой объём · Лечение — премиальными составами в Санкт-Петербурге
           </p>
         </AnimatedSection>
         <AnimatedSection delay={0.9}>
