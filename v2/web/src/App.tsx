@@ -12,6 +12,7 @@ const mapLink = "https://yandex.ru/maps/?text=" + encodeURIComponent(studioAddre
 
 function Booking() {
   const [services, setServices] = useState<Service[]>([]);
+  const [channels, setChannels] = useState({ telegram: false, vk: false });
   const [serviceId, setServiceId] = useState("");
   const [day, setDay] = useState(formatMoscowNow());
   const [slots, setSlots] = useState<string[]>([]);
@@ -29,9 +30,16 @@ function Booking() {
   useEffect(() => {
     if (!configured) return;
     let stale = false;
-    requestApi<{ services: Service[] }>("/public/services")
-      .then((data) => { if (!stale) setServices(data.services); })
-      .catch((err: Error) => { if (!stale) setError(err.message); });
+    Promise.all([
+      requestApi<{ services: Service[] }>("/public/services"),
+      requestApi<{ telegram: boolean; vk: boolean }>("/public/channels"),
+    ]).then(([catalog, configuredChannels]) => {
+      if (!stale) {
+        setServices(catalog.services);
+        setChannels(configuredChannels);
+        setChannel(configuredChannels.telegram ? "telegram" : "vk");
+      }
+    }).catch((err: Error) => { if (!stale) setError(err.message); });
     return () => { stale = true; };
   }, [configured]);
 
@@ -152,16 +160,17 @@ function Booking() {
               <input id="client-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={200} />
               <label className="field-label" htmlFor="phone">Телефон (необязательно)</label>
               <input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" maxLength={40} inputMode="tel" />
+              {!channels.telegram && !channels.vk && <p className="fineprint">Подтверждение через мессенджеры ещё не подключено. Используйте прямую связь с мастером.</p>}
               <fieldset className="channel-choice">
                 <legend className="field-label">Подтверждение в мессенджере</legend>
-                <label><input type="radio" name="channel" checked={channel === "telegram"} onChange={() => setChannel("telegram")}/> Telegram</label>
-                <label><input type="radio" name="channel" checked={channel === "vk"} onChange={() => setChannel("vk")}/> VK</label>
+                <label><input type="radio" name="channel" checked={channel === "telegram"} disabled={!channels.telegram} onChange={() => setChannel("telegram")}/> Telegram</label>
+                <label><input type="radio" name="channel" checked={channel === "vk"} disabled={!channels.vk} onChange={() => setChannel("vk")}/> VK</label>
               </fieldset>
               <label className="consent">
                 <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
                 <span>Согласна(ен) на обработку указанных данных исключительно для записи и связи по услуге.</span>
               </label>
-              <button className="button primary wide" type="button" disabled={!serviceId || !slot || !name.trim() || !consent || busy} onClick={reserve}>
+              <button className="button primary wide" type="button" disabled={!serviceId || !slot || !name.trim() || !consent || busy || !channels[channel]} onClick={reserve}>
                 {busy ? "Создаём заявку…" : "Зарезервировать время"}
               </button>
               {services.length === 0 && <p className="fineprint">Услуги для онлайн-записи пока не настроены мастером.</p>}

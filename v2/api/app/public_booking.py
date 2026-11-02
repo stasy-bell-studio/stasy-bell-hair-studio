@@ -55,6 +55,21 @@ def require_public_enabled():
         raise HTTPException(status_code=503, detail="Online booking is not enabled")
 
 
+def ready_channel(channel: str) -> bool:
+    keys = {
+        "telegram": ("TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_WEBHOOK_SECRET"),
+        "vk": ("VK_GROUP_ID", "VK_GROUP_ACCESS_TOKEN", "VK_CALLBACK_SECRET",
+               "VK_CONFIRMATION_CODE", "VK_COMMUNITY_SCREEN_NAME"),
+    }
+    return channel in keys and all(os.environ.get(key, "").strip() for key in keys[channel])
+
+
+@router.get("/public/channels")
+def available_channels():
+    require_public_enabled()
+    return {"telegram": ready_channel("telegram"), "vk": ready_channel("vk")}
+
+
 def digest(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -173,6 +188,8 @@ def create_hold(
     data: HoldRequest, request: Request, db: Session = Depends(get_db),
 ):
     require_public_enabled()
+    if not ready_channel(data.channel):
+        raise HTTPException(status_code=503, detail="Selected messenger is not connected")
     rate_limit(request, "hold", max_events=3, seconds=3600)
     now = datetime.now(UTC)
     studio_today = now.astimezone(STUDIO_TZ).date()

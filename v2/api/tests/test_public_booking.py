@@ -16,6 +16,14 @@ TZ = ZoneInfo("Europe/Moscow")
 @pytest.fixture
 def public_setup(monkeypatch, api, owner_token):
     monkeypatch.setenv("STASY_PUBLIC_BOOKING_ENABLED", "1")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "synthetic-test-token")
+    monkeypatch.setenv("TELEGRAM_BOT_USERNAME", "synthetic_bot")
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "synthetic-secret")
+    monkeypatch.setenv("VK_GROUP_ID", "123")
+    monkeypatch.setenv("VK_GROUP_ACCESS_TOKEN", "synthetic-group-token")
+    monkeypatch.setenv("VK_CALLBACK_SECRET", "synthetic-vk-secret")
+    monkeypatch.setenv("VK_CONFIRMATION_CODE", "synthetic-confirm")
+    monkeypatch.setenv("VK_COMMUNITY_SCREEN_NAME", "synthetic_group")
     auth = {"Authorization": f"Bearer {owner_token}"}
     day = datetime.now(TZ).date() + timedelta(days=3)
     assert api.put(f"/owner/schedule/{day}", headers=auth, json={
@@ -234,3 +242,14 @@ def test_public_status_owner_alert_and_retry(api, public_setup, monkeypatch):
         assert db.scalar(select(OwnerNotification)).state == "sent"
         assert process_owner_notifications(db, send=messages.append) == 0
     assert api.post(url, json=body).json()["status"] == "confirmed"
+
+
+def test_channel_readiness_prevents_dead_holds(api, public_setup, monkeypatch):
+    service, day = public_setup
+    assert api.get("/public/channels").json() == {"telegram": True, "vk": True}
+    monkeypatch.delenv("VK_GROUP_ACCESS_TOKEN")
+    assert api.get("/public/channels").json()["vk"] is False
+    response = submit(api, service, day, channel="vk")
+    assert response.status_code == 503
+    # This failed channel must not reserve the interval.
+    assert submit(api, service, day, channel="telegram").status_code == 201
