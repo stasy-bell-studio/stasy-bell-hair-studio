@@ -79,6 +79,8 @@ class CalendarEntry(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     occupied_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     hold_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    hold_access_sha256: Mapped[str | None] = mapped_column(String(64))
+    token_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
     quoted_price_kopecks: Mapped[int | None] = mapped_column(Integer)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -86,6 +88,7 @@ class CalendarEntry(Base):
     __table_args__ = (
         CheckConstraint("ends_at > starts_at AND occupied_until >= ends_at", name="valid_calendar_times"),
         CheckConstraint("kind IN ('appointment','block')", name="valid_calendar_kind"),
+        CheckConstraint("token_count >= 0 AND token_count <= 3", name="valid_token_count"),
         CheckConstraint("duration_minutes IS NULL OR duration_minutes > 0", name="valid_visit_duration"),
         CheckConstraint("quoted_price_kopecks IS NULL OR quoted_price_kopecks >= 0", name="valid_quoted_price"),
         CheckConstraint("status IN ('pending_channel','confirmed','expired','cancelled','completed','no_show','blocked')", name="valid_calendar_status"),
@@ -123,4 +126,13 @@ class ConfirmationToken(Base):
     token_sha256: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (CheckConstraint("channel IN ('telegram', 'vk')", name="valid_token_channel"),)
+
+
+class PublicRateEvent(Base):
+    __tablename__ = "public_rate_events"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    identity_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

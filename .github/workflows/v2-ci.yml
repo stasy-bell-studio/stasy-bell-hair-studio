@@ -65,7 +65,7 @@ jobs:
           restored=$(docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
             psql -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
             -c "SELECT version_num FROM alembic_version")
-          test "$restored" = "0003_calendar_snapshot"
+          test "$restored" = "0004_messenger_hold"
           docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
             psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
             -c "SELECT count(*) AS restored_calendar_records FROM calendar_entries"
