@@ -32,6 +32,7 @@ class Client(Base):
     vk_user_id: Mapped[str | None] = mapped_column(String(100))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
         CheckConstraint("preferred_channel IS NULL OR preferred_channel IN ('telegram', 'vk')", name="client_channel"),
     )

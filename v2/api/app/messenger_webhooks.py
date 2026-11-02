@@ -44,7 +44,7 @@ async def telegram_webhook(
         raw = message.get("text", "")
         if raw.startswith("/start "):
             token = raw.split(maxsplit=1)[1].strip()
-            if 25 <= len(token) <= 64 and token.replace("-", "").replace("_", "").isalnum():
+            if 25 <= len(token) <= 56 and token.replace("-", "").replace("_", "").isalnum():
                 await telegram_api("sendMessage", {
                     "chat_id": message["chat"]["id"],
                     "text": "Для подтверждения записи нажмите кнопку ниже.",

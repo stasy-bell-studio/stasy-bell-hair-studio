@@ -14,6 +14,7 @@ depends_on = None
 
 
 def upgrade():
+    op.add_column("clients", sa.Column("consent_at", sa.DateTime(timezone=True)))
     op.add_column("calendar_entries", sa.Column("hold_access_sha256", sa.String(64)))
     op.add_column("calendar_entries", sa.Column("token_count", sa.Integer(), nullable=False, server_default="0"))
     op.create_check_constraint("valid_token_count", "calendar_entries",
@@ -31,6 +32,7 @@ def upgrade():
 
 
 def downgrade():
+    op.drop_column("clients", "consent_at")
     op.drop_index("ix_public_rate_events_identity_hash", table_name="public_rate_events")
     op.drop_table("public_rate_events")
     op.drop_column("confirmation_tokens", "revoked_at")

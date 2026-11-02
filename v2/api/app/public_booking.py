@@ -147,7 +147,6 @@ def public_availability(
     service = db.get(Service, service_id)
     if not service or not service.active or not service.duration_minutes:
         raise HTTPException(status_code=404, detail="Service unavailable")
-    from datetime import time
     windows = db.scalars(select(WorkingWindow).where(WorkingWindow.day == parsed)).all()
     day_start, day_end = local_day_limits(parsed)
     busy = db.scalars(select(CalendarEntry).where(
@@ -189,7 +188,7 @@ def create_hold(
     expire_holds(db)
     require_working_window(db, data.starts_at, occupied)
     access = secrets.token_urlsafe(32)
-    client = Client(name=data.name, phone=data.phone, preferred_channel=data.channel)
+    client = Client(name=data.name, phone=data.phone, preferred_channel=data.channel, consent_at=now)
     db.add(client)
     try:
         db.flush()
