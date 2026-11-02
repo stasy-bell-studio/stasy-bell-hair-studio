@@ -24,6 +24,14 @@ def setup_visit(api, token):
     return headers, client.json()["id"], service.json()["id"]
 
 
+def configure_day(api, headers, start):
+    day = start.astimezone(timezone(timedelta(hours=3))).date()
+    res = api.put(f"/owner/schedule/{day.isoformat()}", headers=headers, json={
+        "windows": [{"starts_at": "08:00", "ends_at": "23:00"}],
+    })
+    assert res.status_code == 200, res.text
+
+
 def test_health_and_auth(api, owner_token):
     assert api.get("/health").json() == {"status": "ok", "version": "v2"}
     assert api.get("/ready").status_code == 200
@@ -38,6 +46,7 @@ def test_overlaps_buffer_and_blocks(api, owner_token):
     start = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
         hour=9, minute=0, second=0, microsecond=0,
     )
+    configure_day(api, headers, start)
     def book(at):
         return api.post("/owner/calendar/appointments", headers=headers, json={
             "client_id": client_id, "service_id": service_id,
@@ -54,7 +63,10 @@ def test_overlaps_buffer_and_blocks(api, owner_token):
 
 def test_two_simultaneous_bookings_never_both_win(api, owner_token):
     _headers, client_id, service_id = setup_visit(api, owner_token)
-    start = datetime.now(timezone.utc) + timedelta(days=5)
+    start = (datetime.now(timezone.utc) + timedelta(days=5)).replace(
+        hour=11, minute=0, second=0, microsecond=0,
+    )
+    configure_day(api, _headers, start)
     barrier = Barrier(2)
 
     def contend(_):
@@ -78,7 +90,10 @@ def test_two_simultaneous_bookings_never_both_win(api, owner_token):
 
 def test_elapsed_pending_hold_is_released_in_booking_transaction(api, owner_token):
     headers, client_id, service_id = setup_visit(api, owner_token)
-    start = datetime.now(timezone.utc) + timedelta(days=3)
+    start = (datetime.now(timezone.utc) + timedelta(days=3)).replace(
+        hour=11, minute=0, second=0, microsecond=0,
+    )
+    configure_day(api, headers, start)
     with get_session_factory()() as session:
         session.add(CalendarEntry(
             kind="appointment", client_id=UUID(client_id), service_id=UUID(service_id),

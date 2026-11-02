@@ -79,11 +79,15 @@ class CalendarEntry(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     occupied_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     hold_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    quoted_price_kopecks: Mapped[int | None] = mapped_column(Integer)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     __table_args__ = (
         CheckConstraint("ends_at > starts_at AND occupied_until >= ends_at", name="valid_calendar_times"),
         CheckConstraint("kind IN ('appointment','block')", name="valid_calendar_kind"),
+        CheckConstraint("duration_minutes IS NULL OR duration_minutes > 0", name="valid_visit_duration"),
+        CheckConstraint("quoted_price_kopecks IS NULL OR quoted_price_kopecks >= 0", name="valid_quoted_price"),
         CheckConstraint("status IN ('pending_channel','confirmed','expired','cancelled','completed','no_show','blocked')", name="valid_calendar_status"),
         CheckConstraint(
             "(kind = 'block' AND status = 'blocked' AND client_id IS NULL AND service_id IS NULL AND hold_until IS NULL) "
