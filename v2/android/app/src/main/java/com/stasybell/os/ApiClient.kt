@@ -25,8 +25,12 @@ data class CashSummary(
     val isClosed: Boolean,
 )
 data class CashEntry(
-    val kind: String, val category: String, val amountKopecks: Long,
-    val occurredAt: String, val correction: Boolean,
+    val id: String, val kind: String, val category: String, val amountKopecks: Long,
+    val occurredAt: String, val correctionOfId: String?, val note: String?,
+)
+data class FinanceClosure(
+    val version: Int, val incomeKopecks: Long, val expenseKopecks: Long,
+    val balanceKopecks: Long, val reopenedAt: String?, val reopenReason: String?,
 )
 
 data class VisitItem(
@@ -102,9 +106,42 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
             .getJSONArray("entries")
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
-            CashEntry(row.getString("kind"), row.getString("category"), row.getLong("amount_kopecks"),
-                row.getString("occurred_at"), !row.isNull("correction_of_id"))
+            CashEntry(
+                row.getString("id"), row.getString("kind"), row.getString("category"),
+                row.getLong("amount_kopecks"), row.getString("occurred_at"),
+                if (row.isNull("correction_of_id")) null else row.getString("correction_of_id"),
+                if (row.isNull("note")) null else row.getString("note"),
+            )
         }
+    }
+
+    suspend fun financeClosures(token: String, year: Int, month: Int): List<FinanceClosure> {
+        val rows = call("GET", "owner/finances/closures?year=$year&month=$month", token = token)
+            .getJSONArray("versions")
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            FinanceClosure(
+                row.getInt("version"), row.getLong("income_kopecks"),
+                row.getLong("expense_kopecks"), row.getLong("balance_kopecks"),
+                if (row.isNull("reopened_at")) null else row.getString("reopened_at"),
+                if (row.isNull("reopen_reason")) null else row.getString("reopen_reason"),
+            )
+        }
+    }
+
+    suspend fun closeFinanceMonth(token: String, year: Int, month: Int) {
+        call("POST", "owner/finances/close",
+            JSONObject().put("year", year).put("month", month), token)
+    }
+
+    suspend fun reopenFinanceMonth(token: String, year: Int, month: Int, reason: String) {
+        call("POST", "owner/finances/reopen",
+            JSONObject().put("year", year).put("month", month).put("reason", reason), token)
+    }
+
+    suspend fun reverseCashTransaction(token: String, transactionId: String, reason: String) {
+        call("POST", "owner/finances/transactions/$transactionId/reverse",
+            JSONObject().put("reason", reason), token)
     }
 
     suspend fun addCash(

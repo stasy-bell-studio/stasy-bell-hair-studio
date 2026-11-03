@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -45,9 +45,16 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
     var period by remember { mutableStateOf(currentPeriod) }
     var totals by remember { mutableStateOf<CashSummary?>(null) }
     var transactions by remember { mutableStateOf<List<CashEntry>>(emptyList()) }
+    var closures by remember { mutableStateOf<List<FinanceClosure>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var warning by remember { mutableStateOf("") }
     var requiresRefresh by remember { mutableStateOf(false) }
+    var actionInFlight by remember { mutableStateOf(false) }
+    var closeDialog by remember { mutableStateOf(false) }
+    var reopenDialog by remember { mutableStateOf(false) }
+    var reopenReason by remember { mutableStateOf("") }
+    var correctionEntry by remember { mutableStateOf<CashEntry?>(null) }
+    var correctionReason by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf("income") }
     var category by remember { mutableStateOf("other") }
     var amountRubles by remember { mutableStateOf("") }
@@ -59,23 +66,55 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
             "taxes" to "Налоги", "advertising" to "Реклама", "other" to "Прочее")
     }
 
+    suspend fun refreshPeriod(requested: YearMonth) {
+        val summary = api.financeSummary(token, requested.year, requested.monthValue)
+        val entries = api.financeTransactions(token, requested.year, requested.monthValue)
+        val history = api.financeClosures(token, requested.year, requested.monthValue)
+        if (period == requested) {
+            totals = summary
+            transactions = entries
+            closures = history
+            warning = ""
+            requiresRefresh = false
+        }
+    }
+
     fun refresh() {
         val requested = period
         scope.launch {
             loading = true
             try {
-                val summary = api.financeSummary(token, requested.year, requested.monthValue)
-                val entries = api.financeTransactions(token, requested.year, requested.monthValue)
-                if (period == requested) {
-                    totals = summary
-                    transactions = entries
-                    warning = ""
-                    if (requested == currentPeriod) requiresRefresh = false
-                }
+                refreshPeriod(requested)
             } catch (ex: Exception) {
                 if (period == requested) warning = "Не удалось загрузить финансы: ${ex.message}"
             } finally {
                 if (period == requested) loading = false
+            }
+        }
+    }
+
+    fun performFinancialAction(
+        actionName: String,
+        action: suspend (YearMonth) -> Unit,
+    ) {
+        if (loading || actionInFlight) return
+        actionInFlight = true
+        loading = true
+        val requested = period
+        scope.launch {
+            warning = ""
+            try {
+                action(requested)
+                refreshPeriod(requested)
+                onChanged()
+            } catch (ex: Exception) {
+                if (period == requested) {
+                    requiresRefresh = true
+                    warning = "Не удалось подтвердить $actionName. Обновите историю перед повтором: ${ex.message}"
+                }
+            } finally {
+                if (period == requested) loading = false
+                actionInFlight = false
             }
         }
     }
@@ -87,11 +126,11 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
             style = MaterialTheme.typography.titleLarge)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = {
-                period = period.minusMonths(1); totals = null; transactions = emptyList(); warning = ""
+                period = period.minusMonths(1); totals = null; transactions = emptyList(); closures = emptyList(); warning = ""
             }, enabled = !loading && period > YearMonth.of(2000, 1),
                 modifier = Modifier.weight(1f)) { Text("Предыдущий месяц") }
             TextButton(onClick = {
-                period = period.plusMonths(1); totals = null; transactions = emptyList(); warning = ""
+                period = period.plusMonths(1); totals = null; transactions = emptyList(); closures = emptyList(); warning = ""
             }, enabled = !loading && period < YearMonth.of(2100, 12),
                 modifier = Modifier.weight(1f)) { Text("Следующий месяц") }
         }
@@ -103,7 +142,18 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                 Text("Денежная разница: ${formatCash(it.balanceKopecks)}",
                     style = MaterialTheme.typography.titleMedium)
             }
-            if (it.isClosed) Text("Месяц закрыт: добавление операций заблокировано.")
+            if (it.isClosed) {
+                Text("Месяц закрыт: добавление операций заблокировано.")
+                StasyButton(
+                    onClick = { reopenReason = ""; reopenDialog = true },
+                    enabled = !loading && !requiresRefresh,
+                ) { Text("Открыть месяц повторно") }
+            } else {
+                StasyButton(
+                    onClick = { closeDialog = true },
+                    enabled = !loading && !requiresRefresh,
+                ) { Text("Закрыть месяц") }
+            }
         }
         StasyButton(onClick = { refresh() }, enabled = !loading) { Text("Обновить суммы") }
         Text("Новая операция", style = MaterialTheme.typography.titleMedium)
@@ -133,24 +183,13 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
         val kopecks = parseCash(amountRubles)
         StasyButton(
             onClick = {
-                if (kopecks != null) scope.launch {
-                    loading = true
-                    try {
-                        api.addCash(token, kind, category, kopecks)
+                if (kopecks != null) {
+                    val amount = kopecks
+                    val selectedKind = kind
+                    val selectedCategory = category
+                    performFinancialAction("операцию") {
+                        api.addCash(token, selectedKind, selectedCategory, amount)
                         amountRubles = ""
-                        onChanged()
-                        try {
-                            totals = api.financeSummary(token, period.year, period.monthValue)
-                            transactions = api.financeTransactions(token, period.year, period.monthValue)
-                            warning = ""
-                        } catch (ex: Exception) {
-                            warning = "Операция записана, но не удалось обновить данные: ${ex.message}"
-                        }
-                    } catch (ex: Exception) {
-                        requiresRefresh = true
-                        warning = "Не удалось подтвердить операцию. Проверьте историю перед повтором: ${ex.message}"
-                    } finally {
-                        loading = false
                     }
                 }
             },
@@ -176,11 +215,133 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                 "other" -> "Прочее"
                 else -> entry.category
             }
+            val reversed = transactions.any { it.correctionOfId == entry.id }
             AppCard {
-                Text("$label · $categoryName", style = MaterialTheme.typography.titleMedium)
-                Text("${if (entry.correction) "Корректировка · " else ""}${formatCash(entry.amountKopecks)}")
+                Text(
+                    "${if (entry.correctionOfId != null) "Сторно · " else ""}$label · $categoryName",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                val signedAmount = if (entry.correctionOfId != null) -entry.amountKopecks
+                    else entry.amountKopecks
+                Text(formatCash(signedAmount))
+                entry.note?.removePrefix("Reversal: ")?.takeIf { it.isNotBlank() }?.let {
+                    Text("Причина: $it")
+                }
                 Text(localVisitTime(entry.occurredAt), style = MaterialTheme.typography.bodySmall)
+                if (entry.correctionOfId == null) {
+                    when {
+                        reversed -> Text("Операция сторнирована.")
+                        totals?.isClosed == true -> Text("Исправления доступны после повторного открытия месяца.")
+                        else -> TextButton(
+                            onClick = { correctionReason = ""; correctionEntry = entry },
+                            enabled = !loading && !requiresRefresh,
+                        ) { Text("Сторнировать $label · $categoryName") }
+                    }
+                }
             }
         }
+        Text("История закрытия месяца", style = MaterialTheme.typography.titleMedium)
+        if (closures.isEmpty()) Text("Месяц ещё не закрывался.")
+        closures.asReversed().forEach { closure ->
+            AppCard {
+                Text("Закрытие · версия ${closure.version}", style = MaterialTheme.typography.titleMedium)
+                Text("Поступления: ${formatCash(closure.incomeKopecks)}")
+                Text("Расходы: ${formatCash(closure.expenseKopecks)}")
+                Text("Денежная разница: ${formatCash(closure.balanceKopecks)}")
+                if (closure.reopenedAt != null) {
+                    Text("Повторно открыто · ${localVisitTime(closure.reopenedAt)}")
+                    closure.reopenReason?.let { Text("Причина: $it") }
+                } else Text("Статус: закрыт")
+            }
+        }
+    }
+
+    if (closeDialog) AlertDialog(
+        onDismissRequest = { if (!loading) closeDialog = false },
+        title = { Text("Закрыть месяц?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Итоги будут сохранены в истории. Новые операции и исправления будут заблокированы.")
+                totals?.let {
+                    Text("Поступления: ${formatCash(it.incomeKopecks)}")
+                    Text("Расходы: ${formatCash(it.expenseKopecks)}")
+                    Text("Денежная разница: ${formatCash(it.balanceKopecks)}")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                closeDialog = false
+                performFinancialAction("закрытие месяца") {
+                    api.closeFinanceMonth(token, it.year, it.monthValue)
+                }
+            }, enabled = !loading && !requiresRefresh) { Text("Подтвердить закрытие") }
+        },
+        dismissButton = {
+            TextButton(onClick = { closeDialog = false }, enabled = !loading) { Text("Назад") }
+        },
+    )
+
+    if (reopenDialog) AlertDialog(
+        onDismissRequest = { if (!loading) reopenDialog = false },
+        title = { Text("Повторно открыть месяц?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("После повторного открытия можно будет добавлять операции и исправления. Причина попадёт в журнал.")
+                OutlinedTextField(
+                    value = reopenReason,
+                    onValueChange = { if (it.length <= 500) reopenReason = it },
+                    label = { Text("Причина повторного открытия") },
+                    supportingText = { Text("Не менее 10 символов.") },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val reason = reopenReason.trim()
+                reopenDialog = false
+                performFinancialAction("повторное открытие") {
+                    api.reopenFinanceMonth(token, it.year, it.monthValue, reason)
+                }
+            }, enabled = !loading && !requiresRefresh && reopenReason.trim().length >= 10) {
+                Text("Подтвердить повторное открытие")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { reopenDialog = false }, enabled = !loading) { Text("Назад") }
+        },
+    )
+
+    correctionEntry?.let { entry ->
+        val label = if (entry.kind == "income") "поступление" else "расход"
+        AlertDialog(
+            onDismissRequest = { if (!loading) correctionEntry = null },
+            title = { Text("Сторнировать $label?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Будет создана обратная запись на ${formatCash(entry.amountKopecks)}. История останется доступна.")
+                    OutlinedTextField(
+                        value = correctionReason,
+                        onValueChange = { if (it.length <= 500) correctionReason = it },
+                        label = { Text("Причина корректировки") },
+                        supportingText = { Text("Не менее 10 символов.") },
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val reason = correctionReason.trim()
+                    correctionEntry = null
+                    performFinancialAction("сторно операции") {
+                        api.reverseCashTransaction(token, entry.id, reason)
+                    }
+                }, enabled = !loading && !requiresRefresh && correctionReason.trim().length >= 10) {
+                    Text("Подтвердить сторно")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { correctionEntry = null }, enabled = !loading) { Text("Назад") }
+            },
+        )
     }
 }

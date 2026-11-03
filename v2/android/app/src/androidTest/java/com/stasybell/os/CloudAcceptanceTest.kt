@@ -2,8 +2,10 @@ package com.stasybell.os
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.isDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -226,7 +228,10 @@ class CloudAcceptanceTest {
         waitFor("Поступления: 900,00 ₽")
         enter("Сумма, ₽", "1500")
         compose.onNodeWithText("Записать фактическую операцию")
-            .performTouchInput { doubleClick() }
+            .performTouchInput {
+                click()
+                click()
+            }
         waitFor("Поступления: 2400,00 ₽")
         click("Доход — переключить на расход")
         click("Прочее")
@@ -248,6 +253,30 @@ class CloudAcceptanceTest {
             "A double tap should create one operation, and two actual entries should remain visible."
         }
         screenshot("10-finance-history")
+        click("Закрыть месяц")
+        click("Подтвердить закрытие")
+        waitFor("Месяц закрыт: добавление операций заблокировано.")
+        waitFor("Закрытие · версия 1")
+        val addOperation = compose.onNodeWithText("Записать фактическую операцию")
+        if (!addOperation.isDisplayed()) addOperation.performScrollTo()
+        addOperation.assertIsNotEnabled()
+        click("Открыть месяц повторно")
+        waitFor("Причина повторного открытия")
+        compose.onNodeWithText("Подтвердить повторное открытие").assertIsNotEnabled()
+        enter("Причина повторного открытия", "Сверка тестового месяца")
+        click("Подтвердить повторное открытие")
+        waitFor("Повторно открыто", substring = true)
+        click("Сторнировать Расход · Материалы")
+        enter("Причина корректировки", "Проверка тестового сторно")
+        click("Подтвердить сторно")
+        waitFor("Расходы: 0,00 ₽")
+        waitFor("Денежная разница: 2400,00 ₽")
+        waitFor("Сторно · Расход · Материалы")
+        waitFor("Причина: Проверка тестового сторно")
+        waitFor("Причина: Сверка тестового месяца")
+        click("Закрыть месяц")
+        click("Подтвердить закрытие")
+        waitFor("Закрытие · версия 2")
         click("Предыдущий месяц")
         waitFor("Добавление операций доступно только в текущем месяце.")
         click("Следующий месяц")
