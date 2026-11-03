@@ -3,7 +3,6 @@ package com.stasybell.os
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.click
@@ -226,7 +225,9 @@ class CloudAcceptanceTest {
         screenshot("10-finance-overview")
         click("Следующий месяц")
         waitFor("Будущий месяц нельзя закрыть заранее.")
-        compose.onNodeWithText("Закрыть месяц").assertDoesNotExist()
+        check(compose.onAllNodesWithText("Закрыть месяц").fetchSemanticsNodes().isEmpty()) {
+            "Future months must not offer a close action."
+        }
         click("Предыдущий месяц")
         waitFor("Поступления: 0,00 ₽")
         enter("Сумма, ₽", "900")
