@@ -20,6 +20,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
@@ -106,12 +109,14 @@ fun CalendarPanel(
         pendingAction = action
     }
 
+    val compactFont = LocalDensity.current.fontScale >= 1.3f
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Календарь", style = MaterialTheme.typography.titleLarge)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("День", "Неделя", "Месяц").forEach { mode ->
                 FilterChip(selected = rangeMode == mode, onClick = { rangeMode = mode },
-                    label = { Text(mode) }, modifier = Modifier.weight(1f))
+                    label = { Text(if (mode == "Неделя" && compactFont) "Нед." else mode, maxLines = 1) },
+                    modifier = Modifier.weight(1f).semantics { contentDescription = mode })
             }
         }
         if (rangeMode != "Ближайшие") {

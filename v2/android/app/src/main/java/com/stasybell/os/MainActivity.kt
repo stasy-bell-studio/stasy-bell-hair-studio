@@ -20,6 +20,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
@@ -175,11 +178,11 @@ fun MasterApp() {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Stasy Bell OS", style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f).padding(top = 12.dp))
-                    TextButton(onClick = { refresh(activeToken) }, enabled = !busy) {
-                        Text("Обновить")
+                    IconButton(onClick = { refresh(activeToken) }, enabled = !busy) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                     }
-                    TextButton(onClick = { token = null; cash = null; page = "Сегодня" }) {
-                        Text("Выход")
+                    IconButton(onClick = { token = null; cash = null; page = "Сегодня" }) {
+                        Icon(Icons.Default.ExitToApp, contentDescription = "Выход")
                     }
                 }
                 if (busy) Text("Загрузка…")
