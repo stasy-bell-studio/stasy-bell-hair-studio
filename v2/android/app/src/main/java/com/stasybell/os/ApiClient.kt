@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 
 data class ServiceItem(
     val id: String, val name: String, val variant: String?,
@@ -36,6 +37,13 @@ data class VisitItem(
 )
 data class WorkingTime(val start: String, val end: String)
 data class MaterialItem(val id: String, val name: String, val unit: String, val milliunits: Long)
+
+val studioDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.uuuu")
+    .withResolverStyle(ResolverStyle.STRICT)
+
+fun parseStudioDate(value: String): LocalDate? = try {
+    LocalDate.parse(value, studioDateFormat)
+} catch (_: java.time.format.DateTimeParseException) { null }
 
 fun toMoscowOffset(date: String, clock: String): String =
     LocalDateTime.parse("${date}T${clock}")

@@ -1,6 +1,7 @@
 package com.stasybell.os
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
@@ -35,6 +36,9 @@ class CloudAcceptanceTest {
         waitFor(text)
         val node = compose.onNodeWithText(text)
         if (!node.isDisplayed()) node.performScrollTo()
+        compose.waitUntil(timeoutMillis = 20_000) {
+            runCatching { node.assertIsEnabled() }.isSuccess
+        }
         node.performClick()
     }
 
@@ -42,6 +46,9 @@ class CloudAcceptanceTest {
         waitFor(label)
         val node = compose.onNodeWithText(label)
         if (!node.isDisplayed()) node.performScrollTo()
+        compose.waitUntil(timeoutMillis = 20_000) {
+            runCatching { node.assertIsEnabled() }.isSuccess
+        }
         node.performTextReplacement(value)
     }
 
@@ -68,7 +75,7 @@ class CloudAcceptanceTest {
         enter("Имя клиента", client)
         click("Выбрать услугу")
         click("Synthetic service · ")
-        enter("Дата: ГГГГ-ММ-ДД", day)
+        enter("Дата: ДД.ММ.ГГГГ", day)
         enter("Время: ЧЧ:ММ", time)
         screenshot("manual-booking")
         click("Создать подтверждённую запись")
@@ -77,7 +84,6 @@ class CloudAcceptanceTest {
 
     @Test fun ownerJourney() {
         val day = LocalDate.now(ZoneId.of("Europe/Moscow")).plusDays(1)
-        val iso = day.toString()
         val display = day.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
 
         waitFor("Личный кабинет мастера")
@@ -91,7 +97,7 @@ class CloudAcceptanceTest {
         click("Ещё")
         click("График")
         waitFor("Рабочий график")
-        enter("Дата, ГГГГ-ММ-ДД", iso)
+        enter("Дата, ДД.ММ.ГГГГ", display)
         click("Обновить день")
         waitFor("В этот день нет открытых окон.")
         enter("Начало первого окна", "09:00")
@@ -131,12 +137,12 @@ class CloudAcceptanceTest {
         waitFor("На выбранные даты записей нет.")
         screenshot("05-calendar-month")
 
-        book("Synthetic Move", "10:00", iso)
+        book("Synthetic Move", "10:00", display)
         waitFor("$display 10:00 · Synthetic Move", substring = true)
         waitFor("Ожидаемая стоимость записи: 1200,50 ₽")
         screenshot("06-calendar")
         click("Перенести")
-        enter("Новая дата, ГГГГ-ММ-ДД", iso)
+        enter("Новая дата, ДД.ММ.ГГГГ", display)
         enter("Новое время, ЧЧ:ММ", "12:00")
         click("Подтвердить")
         waitFor("$display 12:00 · Synthetic Move", substring = true)
@@ -146,7 +152,7 @@ class CloudAcceptanceTest {
         waitFor("Отменена · вручную")
         screenshot("08-cancelled")
 
-        book("Synthetic Completed", "14:00", iso)
+        book("Synthetic Completed", "14:00", display)
         waitFor("$display 14:00 · Synthetic Completed", substring = true)
         click("Услуга выполнена")
         click("Подтвердить")

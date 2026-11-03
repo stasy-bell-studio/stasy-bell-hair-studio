@@ -35,7 +35,7 @@ fun CalendarPanel(
     val scope = rememberCoroutineScope()
     var selected by remember { mutableStateOf<VisitItem?>(null) }
     var pendingAction by remember { mutableStateOf("") }
-    var moveDay by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).toString()) }
+    var moveDay by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).format(studioDateFormat)) }
     var moveTime by remember { mutableStateOf("10:00") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
@@ -174,7 +174,8 @@ fun CalendarPanel(
                     if (pendingAction == "move") {
                         OutlinedTextField(
                             value = moveDay, onValueChange = { moveDay = it },
-                            label = { Text("Новая дата, ГГГГ-ММ-ДД") },
+                            label = { Text("Новая дата, ДД.ММ.ГГГГ") },
+                            isError = moveDay.isNotEmpty() && parseStudioDate(moveDay) == null,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
@@ -189,12 +190,12 @@ fun CalendarPanel(
                 }
             },
             confirmButton = {
-                TextButton(enabled = !busy, onClick = {
+                TextButton(enabled = !busy && (pendingAction != "move" || parseStudioDate(moveDay) != null), onClick = {
                     busy = true
                     scope.launch {
                         try {
                             when (pendingAction) {
-                                "move" -> api.moveVisit(token, visit.id, moveDay, moveTime)
+                                "move" -> api.moveVisit(token, visit.id, requireNotNull(parseStudioDate(moveDay)).toString(), moveTime)
                                 "complete" -> api.updateVisitStatus(token, visit.id, "completed")
                                 "no_show" -> api.updateVisitStatus(token, visit.id, "no_show")
                                 "cancel" -> api.cancelVisit(token, visit.id)

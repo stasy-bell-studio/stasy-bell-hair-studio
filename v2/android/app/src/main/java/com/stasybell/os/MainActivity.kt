@@ -322,7 +322,7 @@ fun ManualBookingForm(
     onCreate: (String, String, String, String) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).toString()) }
+    var date by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).format(studioDateFormat)) }
     var clock by remember { mutableStateOf("10:00") }
     var selected by remember { mutableStateOf<ServiceItem?>(null) }
     var expanded by remember { mutableStateOf(false) }
@@ -350,12 +350,14 @@ fun ManualBookingForm(
             Text("Фактические поступления записываются отдельно.", style = MaterialTheme.typography.bodySmall)
         }
         OutlinedTextField(value = date, onValueChange = { date = it },
-            label = { Text("Дата: ГГГГ-ММ-ДД") })
+            label = { Text("Дата: ДД.ММ.ГГГГ") }, isError = date.isNotEmpty() && parseStudioDate(date) == null)
         OutlinedTextField(value = clock, onValueChange = { clock = it },
             label = { Text("Время: ЧЧ:ММ") })
         Button(
-            enabled = !busy && name.isNotBlank() && selected != null,
-            onClick = { selected?.let { onCreate(name.trim(), it.id, date, clock) } },
+            enabled = !busy && name.isNotBlank() && selected != null && parseStudioDate(date) != null,
+            onClick = { selected?.let { service -> parseStudioDate(date)?.let { day ->
+                onCreate(name.trim(), service.id, day.toString(), clock)
+            } } },
         ) { Text("Создать подтверждённую запись") }
     }
 }
