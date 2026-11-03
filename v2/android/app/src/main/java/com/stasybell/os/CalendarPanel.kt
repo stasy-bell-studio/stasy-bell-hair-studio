@@ -23,10 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
-import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 
 fun visitStatusLabel(status: String): String = when (status) {
@@ -170,23 +170,25 @@ fun CalendarPanel(
         if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty() &&
             rangeMode !in listOf("Неделя", "Месяц")) Text("На выбранные даты записей нет.")
         if (!rangeLoading && rangeError.isBlank() && rangeMode in listOf("Неделя", "Месяц")) {
-            val dates = (0..java.time.temporal.ChronoUnit.DAYS.between(from, to).toInt())
-                .map { from.plusDays(it.toLong()) }
-            val groups = if (rangeMode == "Неделя") dates.map { listOf(it) }
-                else dates.groupBy { it.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }.values.toList()
-            groups.forEach { group ->
-                val dayLabels = group.map { it.format(display) }.toSet()
-                val count = rangeVisits.count {
-                    it.kind == "appointment" && countsAsVisit(it.status) &&
-                        it.localTime.substringBefore(" ") in dayLabels
-                }
-                val label = if (group.size == 1) group.first().format(display)
-                    else "${group.first().format(display)} — ${group.last().format(display)}"
-                TextButton(onClick = {
-                    anchor = group.first()
-                    rangeMode = if (rangeMode == "Месяц") "Неделя" else "День"
-                }, modifier = Modifier.fillMaxWidth()) { Text("$label · записей: $count") }
-            }
+            val dates = if (rangeMode == "Неделя") calendarWeekDates(anchor) else calendarMonthDates(anchor)
+            val visitCounts = rangeVisits.asSequence()
+                .filter { it.kind == "appointment" && countsAsVisit(it.status) }
+                .mapNotNull { parseStudioDate(it.localTime.substringBefore(" ")) }
+                .groupingBy { it }
+                .eachCount()
+            Text("Нажмите дату, чтобы открыть расписание.", style = MaterialTheme.typography.bodySmall)
+            if (rangeVisits.isEmpty()) Text("В выбранном периоде записей нет.", style = MaterialTheme.typography.bodySmall)
+            CalendarDateGrid(
+                dates = dates,
+                anchor = anchor,
+                displayMonth = if (rangeMode == "Неделя") anchor else from,
+                visitCounts = visitCounts,
+                showWeekdaysInCells = rangeMode == "Неделя",
+                onSelect = { date ->
+                    anchor = date
+                    rangeMode = "День"
+                },
+            )
         }
         val detailedVisits = if (rangeMode in listOf("Неделя", "Месяц")) emptyList() else rangeVisits
         detailedVisits.forEach { visit ->

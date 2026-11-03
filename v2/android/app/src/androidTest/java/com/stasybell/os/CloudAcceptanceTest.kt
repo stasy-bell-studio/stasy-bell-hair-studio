@@ -5,6 +5,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -39,6 +41,15 @@ class CloudAcceptanceTest {
         compose.waitUntil(timeoutMillis = 20_000) {
             runCatching { node.assertIsEnabled() }.isSuccess
         }
+        node.performClick()
+    }
+
+    private fun clickAccessible(description: String) {
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
+        }
+        val node = compose.onNodeWithContentDescription(description)
+        if (!node.isDisplayed()) node.performScrollTo()
         node.performClick()
     }
 
@@ -136,11 +147,13 @@ class CloudAcceptanceTest {
         waitFor("Записей за период: 0")
         screenshot("05-calendar-week")
         val todayDisplay = day.minusDays(1).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-        click("$todayDisplay · записей: 0")
+        clickAccessible("Выбрать $todayDisplay, записей: 0")
         waitFor(todayDisplay)
         click("Месяц")
         waitFor("Записей за период: 0")
         screenshot("05-calendar-month")
+        clickAccessible("Выбрать $todayDisplay, записей: 0")
+        waitFor(todayDisplay)
         click("Перейти к дате")
         enter("Дата, ДД.ММ.ГГГГ", display)
         click("Открыть день")
@@ -158,7 +171,7 @@ class CloudAcceptanceTest {
         waitFor("09:00–10:00 · Без записи")
         waitFor("10:00–11:15 · Synthetic Move · Подтверждена")
         click("Неделя")
-        click("$display · записей: 1")
+        clickAccessible("Выбрать $display, записей: 1")
         waitFor("$display 10:00 · Synthetic Move", substring = true)
         click("Клиенты")
         click("Сегодня")
