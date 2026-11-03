@@ -2,6 +2,7 @@ package com.stasybell.os
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
@@ -9,6 +10,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 
 fun formatCash(kopecks: Long): String {
@@ -38,7 +41,8 @@ fun parseCash(raw: String): Long? = try {
 @Composable
 fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val period = remember { LocalDate.now(ZoneId.of("Europe/Moscow")) }
+    val currentPeriod = YearMonth.from(LocalDate.now(ZoneId.of("Europe/Moscow")))
+    var period by remember { mutableStateOf(currentPeriod) }
     var totals by remember { mutableStateOf<CashSummary?>(null) }
     var transactions by remember { mutableStateOf<List<CashEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
@@ -56,26 +60,41 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
     }
 
     fun refresh() {
+        val requested = period
         scope.launch {
             loading = true
             try {
-                totals = api.financeSummary(token, period.year, period.monthValue)
-                transactions = api.financeTransactions(token, period.year, period.monthValue)
-                warning = ""
-                requiresRefresh = false
+                val summary = api.financeSummary(token, requested.year, requested.monthValue)
+                val entries = api.financeTransactions(token, requested.year, requested.monthValue)
+                if (period == requested) {
+                    totals = summary
+                    transactions = entries
+                    warning = ""
+                    if (requested == currentPeriod) requiresRefresh = false
+                }
             } catch (ex: Exception) {
-                warning = "Не удалось загрузить финансы: ${ex.message}"
+                if (period == requested) warning = "Не удалось загрузить финансы: ${ex.message}"
             } finally {
-                loading = false
+                if (period == requested) loading = false
             }
         }
     }
 
-    LaunchedEffect(token) { refresh() }
+    LaunchedEffect(token, period) { refresh() }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Финансы · ${period.monthValue.toString().padStart(2, '0')}.${period.year}",
             style = MaterialTheme.typography.titleLarge)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = {
+                period = period.minusMonths(1); totals = null; transactions = emptyList(); warning = ""
+            }, enabled = !loading && period > YearMonth.of(2000, 1),
+                modifier = Modifier.weight(1f)) { Text("Предыдущий месяц") }
+            TextButton(onClick = {
+                period = period.plusMonths(1); totals = null; transactions = emptyList(); warning = ""
+            }, enabled = !loading && period < YearMonth.of(2100, 12),
+                modifier = Modifier.weight(1f)) { Text("Следующий месяц") }
+        }
         Text("Только фактические поступления и расходы. Разница — не бухгалтерская прибыль.")
         totals?.let {
             AppCard {
@@ -88,6 +107,7 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
         }
         StasyButton(onClick = { refresh() }, enabled = !loading) { Text("Обновить суммы") }
         Text("Новая операция", style = MaterialTheme.typography.titleMedium)
+        if (period != currentPeriod) Text("Добавление операций доступно только в текущем месяце.")
         StasyButton(onClick = {
             kind = if (kind == "income") "expense" else "income"
             category = if (kind == "income") "materials" else "other"
@@ -134,7 +154,8 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                     }
                 }
             },
-            enabled = kopecks != null && !loading && !requiresRefresh && totals?.isClosed == false,
+            enabled = kopecks != null && !loading && !requiresRefresh &&
+                period == currentPeriod && totals?.isClosed == false,
         ) { Text("Записать фактическую операцию") }
         if (warning.isNotBlank()) {
             Text(warning, color = MaterialTheme.colorScheme.error)
