@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
@@ -55,6 +56,8 @@ fun CalendarPanel(
     var rangeVisits by remember { mutableStateOf(visits) }
     var rangeLoading by remember { mutableStateOf(false) }
     var rangeError by remember { mutableStateOf("") }
+    var windows by remember { mutableStateOf<List<WorkingTime>?>(null) }
+    var windowsError by remember { mutableStateOf("") }
     var dateDialog by remember { mutableStateOf(false) }
     var targetDate by remember { mutableStateOf(anchor.format(studioDateFormat)) }
 
@@ -71,6 +74,8 @@ fun CalendarPanel(
         else -> from.plusDays(7)
     }
     LaunchedEffect(token, rangeMode, from, to, visits) {
+        windows = null
+        windowsError = ""
         if (rangeMode == "Ближайшие") {
             rangeVisits = visits
             rangeError = ""
@@ -80,6 +85,13 @@ fun CalendarPanel(
             try {
                 rangeVisits = api.visits(token, from, to)
                 rangeError = ""
+                if (rangeMode == "День") {
+                    try { windows = api.schedule(token, from.toString()) }
+                    catch (ex: CancellationException) { throw ex }
+                    catch (ex: Exception) { windowsError = "Не удалось загрузить рабочие окна: ${ex.message}" }
+                }
+            } catch (ex: CancellationException) {
+                throw ex
             } catch (ex: Exception) {
                 rangeError = "Не удалось загрузить календарь: ${ex.message}"
             } finally { rangeLoading = false }
@@ -130,6 +142,12 @@ fun CalendarPanel(
         }
         if (rangeLoading) Text("Загрузка календаря…")
         if (rangeError.isNotBlank()) Text(rangeError, color = MaterialTheme.colorScheme.error)
+        if (windowsError.isNotBlank()) Text(windowsError, color = MaterialTheme.colorScheme.error)
+        windows?.let { actualWindows ->
+            Text(if (actualWindows.isEmpty()) "Открытых рабочих окон нет." else
+                "Рабочие окна: " + actualWindows.joinToString(", ") { "${it.start.take(5)}–${it.end.take(5)}" },
+                style = MaterialTheme.typography.bodySmall)
+        }
         if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty()) Text("На выбранные даты записей нет.")
         if (!rangeLoading && rangeError.isBlank() && rangeMode in listOf("Неделя", "Месяц")) {
             val dates = (0..java.time.temporal.ChronoUnit.DAYS.between(from, to).toInt())
@@ -162,6 +180,7 @@ fun CalendarPanel(
                     else -> visit.source
                 }
                 Text("$status · $source", style = MaterialTheme.typography.bodySmall)
+                Text("Окончание: ${visit.localEnd}", style = MaterialTheme.typography.bodySmall)
                 visit.durationMinutes?.let { Text("Длительность: $it мин", style = MaterialTheme.typography.bodySmall) }
                 visit.quotedPriceKopecks?.let {
                     Text("Ожидаемая стоимость записи: ${formatCash(it)}", style = MaterialTheme.typography.bodySmall)

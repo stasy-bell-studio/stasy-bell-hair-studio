@@ -154,6 +154,7 @@ class CloudAcceptanceTest {
         enter("Дата, ДД.ММ.ГГГГ", display)
         click("Открыть день")
         waitFor("$display 10:00 · Synthetic Move", substring = true)
+        waitFor("Рабочие окна: 09:00–19:00")
         click("Неделя")
         click("$display · записей: 1")
         waitFor("$display 10:00 · Synthetic Move", substring = true)
