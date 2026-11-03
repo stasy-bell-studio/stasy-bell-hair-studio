@@ -252,7 +252,7 @@ class CloudAcceptanceTest {
         val history = compose.onNodeWithText("Расход · Материалы")
         if (!history.isDisplayed()) history.performScrollTo()
         history.assertIsDisplayed()
-        val incomeHistory = compose.onNodeWithText("Поступление · Прочее")
+        val incomeHistory = compose.onAllNodesWithText("Поступление · Прочее").onFirst()
         incomeHistory.performScrollTo()
         incomeHistory.assertIsDisplayed()
         check(compose.onAllNodesWithText("Поступление · Прочее").fetchSemanticsNodes().size == 2) {
