@@ -133,6 +133,7 @@ class CloudAcceptanceTest {
 
         book("Synthetic Move", "10:00", iso)
         waitFor("$display 10:00 · Synthetic Move", substring = true)
+        waitFor("Ожидаемая стоимость записи: 1200,50 ₽")
         screenshot("06-calendar")
         click("Перенести")
         enter("Новая дата, ГГГГ-ММ-ДД", iso)
@@ -178,6 +179,9 @@ class CloudAcceptanceTest {
         val history = compose.onNodeWithText("Расход · Материалы")
         if (!history.isDisplayed()) history.performScrollTo()
         history.assertIsDisplayed()
+        val incomeHistory = compose.onNodeWithText("Поступление · Прочее")
+        incomeHistory.performScrollTo()
+        incomeHistory.assertIsDisplayed()
         screenshot("10-finance-history")
         click("Сегодня")
         waitFor("1500,00 ₽")

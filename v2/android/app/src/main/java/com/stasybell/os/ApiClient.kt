@@ -32,6 +32,7 @@ data class VisitItem(
     val id: String, val clientId: String?, val serviceId: String?,
     val startsAt: String, val localTime: String, val status: String,
     val source: String, val kind: String,
+    val durationMinutes: Int?, val quotedPriceKopecks: Long?,
 )
 data class WorkingTime(val start: String, val end: String)
 data class MaterialItem(val id: String, val name: String, val unit: String, val milliunits: Long)
@@ -151,6 +152,8 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                 status = row.getString("status"),
                 source = row.getString("source"),
                 kind = row.getString("kind"),
+                durationMinutes = if (row.isNull("duration_minutes")) null else row.getInt("duration_minutes"),
+                quotedPriceKopecks = if (row.isNull("quoted_price_kopecks")) null else row.getLong("quoted_price_kopecks"),
             )
         }
     }

@@ -128,6 +128,10 @@ fun CalendarPanel(
                     else -> visit.source
                 }
                 Text("$status · $source", style = MaterialTheme.typography.bodySmall)
+                visit.durationMinutes?.let { Text("Длительность: $it мин", style = MaterialTheme.typography.bodySmall) }
+                visit.quotedPriceKopecks?.let {
+                    Text("Ожидаемая стоимость записи: ${formatCash(it)}", style = MaterialTheme.typography.bodySmall)
+                }
                 if (visit.kind == "appointment" && visit.status == "confirmed") {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = { request(visit, "move") }, modifier = Modifier.weight(1f)) { Text("Перенести") }
