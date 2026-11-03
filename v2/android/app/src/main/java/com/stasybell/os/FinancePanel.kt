@@ -36,8 +36,10 @@ fun FinancePanel(api: ApiClient, token: String) {
     val scope = rememberCoroutineScope()
     val period = remember { LocalDate.now(ZoneId.of("Europe/Moscow")) }
     var totals by remember { mutableStateOf<CashSummary?>(null) }
+    var transactions by remember { mutableStateOf<List<CashEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var warning by remember { mutableStateOf("") }
+    var requiresRefresh by remember { mutableStateOf(false) }
     var kind by remember { mutableStateOf("income") }
     var category by remember { mutableStateOf("other") }
     var amountRubles by remember { mutableStateOf("") }
@@ -54,7 +56,9 @@ fun FinancePanel(api: ApiClient, token: String) {
             loading = true
             try {
                 totals = api.financeSummary(token, period.year, period.monthValue)
+                transactions = api.financeTransactions(token, period.year, period.monthValue)
                 warning = ""
+                requiresRefresh = false
             } catch (ex: Exception) {
                 warning = "Не удалось загрузить финансы: ${ex.message}"
             } finally {
@@ -111,20 +115,47 @@ fun FinancePanel(api: ApiClient, token: String) {
                     try {
                         api.addCash(token, kind, category, kopecks)
                         amountRubles = ""
-                        totals = api.financeSummary(token, period.year, period.monthValue)
-                        warning = ""
+                        try {
+                            totals = api.financeSummary(token, period.year, period.monthValue)
+                            transactions = api.financeTransactions(token, period.year, period.monthValue)
+                            warning = ""
+                        } catch (ex: Exception) {
+                            warning = "Операция записана, но не удалось обновить данные: ${ex.message}"
+                        }
                     } catch (ex: Exception) {
-                        warning = "Операция не сохранена: ${ex.message}"
+                        requiresRefresh = true
+                        warning = "Не удалось подтвердить операцию. Проверьте историю перед повтором: ${ex.message}"
                     } finally {
                         loading = false
                     }
                 }
             },
-            enabled = kopecks != null && !loading && totals?.isClosed == false,
+            enabled = kopecks != null && !loading && !requiresRefresh && totals?.isClosed == false,
         ) { Text("Записать фактическую операцию") }
         if (warning.isNotBlank()) {
             Text(warning, color = MaterialTheme.colorScheme.error)
         }
         Text("Фактически полученную сумму мастер записывает вручную. Завершение визита не создаёт поступление.")
+        Text("История операций", style = MaterialTheme.typography.titleMedium)
+        if (!loading && warning.isBlank() && totals != null && transactions.isEmpty()) {
+            Text("В этом месяце операций пока нет.")
+        }
+        transactions.asReversed().forEach { entry ->
+            val label = if (entry.kind == "income") "Поступление" else "Расход"
+            val categoryName = when (entry.category) {
+                "procedure" -> "Услуга"
+                "materials" -> "Материалы"
+                "rent" -> "Аренда"
+                "taxes" -> "Налоги"
+                "advertising" -> "Реклама"
+                "other" -> "Прочее"
+                else -> entry.category
+            }
+            AppCard {
+                Text("$label · $categoryName", style = MaterialTheme.typography.titleMedium)
+                Text("${if (entry.correction) "Корректировка · " else ""}${formatCash(entry.amountKopecks)}")
+                Text(localVisitTime(entry.occurredAt), style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }

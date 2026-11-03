@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -127,14 +127,20 @@ fun CalendarPanel(
                 }
                 Text("$status · $source", style = MaterialTheme.typography.bodySmall)
                 if (visit.kind == "appointment" && visit.status == "confirmed") {
-                    Button(onClick = { request(visit, "move") }) { Text("Перенести") }
-                    Button(onClick = { request(visit, "complete") }) { Text("Услуга выполнена") }
-                    Button(onClick = { request(visit, "no_show") }) { Text("Не пришёл") }
-                    Button(onClick = { request(visit, "cancel") }) { Text("Отменить") }
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { request(visit, "move") }, modifier = Modifier.weight(1f)) { Text("Перенести") }
+                        TextButton(onClick = { request(visit, "complete") }, modifier = Modifier.weight(1f)) { Text("Услуга выполнена") }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { request(visit, "no_show") }, modifier = Modifier.weight(1f)) { Text("Не пришёл") }
+                        TextButton(onClick = { request(visit, "cancel") }, modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Отменить") }
+                    }
                 }
                 if (visit.kind == "appointment" && visit.status in
                         listOf("confirmed", "completed", "no_show", "cancelled")) {
-                    Button(onClick = { request(visit, "delete") }) { Text("Удалить с историей") }
+                    TextButton(onClick = { request(visit, "delete") },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Удалить с историей") }
                 }
             }
         }

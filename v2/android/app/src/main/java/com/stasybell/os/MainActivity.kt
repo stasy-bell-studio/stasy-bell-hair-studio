@@ -3,6 +3,7 @@ package com.stasybell.os
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
@@ -53,6 +55,7 @@ import java.time.ZoneId
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
         setContent { StasyTheme { MasterApp() } }
     }
 }
@@ -150,7 +153,7 @@ fun MasterApp() {
                             selected = page == tab || (tab == "Ещё" && page in morePages),
                             onClick = { page = tab },
                             icon = { Icon(icons[index], contentDescription = null, modifier = Modifier.size(20.dp)) },
-                            label = { Text(tab) },
+                            label = { Text(tab, fontSize = 10.sp) },
                             alwaysShowLabel = true,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = StasyColors.Primary,
@@ -183,7 +186,10 @@ fun MasterApp() {
                 Spacer(Modifier.height(12.dp))
                 when (page) {
                     "Сегодня" -> {
-                        val todayVisits = visits.filter { it.localTime.startsWith(today.format(
+                        val appointments = visits.filter {
+                            it.kind == "appointment" && it.status !in listOf("cancelled", "no_show")
+                        }
+                        val todayVisits = appointments.filter { it.localTime.startsWith(today.format(
                             java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
                         )) }
                         Surface(shape = MaterialTheme.shapes.large, color = StasyColors.PrimaryDeep) {
@@ -213,7 +219,7 @@ fun MasterApp() {
                                 val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
                                 Text("${visit.localTime} · $client · $service")
                             }
-                            Text("Всего записей на 8 дней: ${visits.size}", style = MaterialTheme.typography.bodySmall)
+                            Text("Всего записей на 8 дней: ${appointments.size}", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     "Календарь" -> {

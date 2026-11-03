@@ -23,6 +23,10 @@ data class CashSummary(
     val balanceKopecks: Long,
     val isClosed: Boolean,
 )
+data class CashEntry(
+    val kind: String, val category: String, val amountKopecks: Long,
+    val occurredAt: String, val correction: Boolean,
+)
 
 data class VisitItem(
     val id: String, val clientId: String?, val serviceId: String?,
@@ -81,6 +85,16 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
             result.getLong("income_kopecks"), result.getLong("expense_kopecks"),
             result.getLong("balance_kopecks"), result.getBoolean("is_closed"),
         )
+    }
+
+    suspend fun financeTransactions(token: String, year: Int, month: Int): List<CashEntry> {
+        val rows = call("GET", "owner/finances/transactions?year=$year&month=$month", token = token)
+            .getJSONArray("entries")
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            CashEntry(row.getString("kind"), row.getString("category"), row.getLong("amount_kopecks"),
+                row.getString("occurred_at"), !row.isNull("correction_of_id"))
+        }
     }
 
     suspend fun addCash(
