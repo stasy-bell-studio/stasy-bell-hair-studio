@@ -145,7 +145,7 @@ fun MasterApp() {
         val tabs = listOf("Сегодня", "Календарь", "Клиенты", "Финансы", "Ещё")
         val icons = listOf(Icons.Default.Home, Icons.Default.DateRange, Icons.Default.Person,
             Icons.Default.AccountBox, Icons.Default.MoreVert)
-        val morePages = listOf("График", "Услуги", "Материалы", "+ Запись")
+        val morePages = listOf("+ Запись", "График", "Услуги", "Материалы", "Отчёты", "Настройки")
         Scaffold(
             bottomBar = {
                 NavigationBar(containerColor = StasyColors.Surface, tonalElevation = 0.dp) {
@@ -242,6 +242,20 @@ fun MasterApp() {
                     }
                     "Материалы" -> {
                         MaterialsPanel(api, activeToken)
+                    }
+                    "Отчёты" -> {
+                        Text("Отчёты", style = MaterialTheme.typography.titleLarge)
+                        AppCard {
+                            Text("Подробные отчёты пока недоступны.")
+                            Text("Фактические поступления и расходы доступны в разделе «Финансы».")
+                        }
+                    }
+                    "Настройки" -> {
+                        Text("Настройки", style = MaterialTheme.typography.titleLarge)
+                        AppCard {
+                            Text("Интеграции и резервные копии", style = MaterialTheme.typography.titleMedium)
+                            Text("Состояние подключений и резервных копий в приложении пока не отображается.")
+                        }
                     }
                     "Ещё" -> {
                         Text("Ещё", style = MaterialTheme.typography.titleLarge)

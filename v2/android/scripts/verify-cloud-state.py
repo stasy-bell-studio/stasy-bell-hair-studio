@@ -44,8 +44,8 @@ def main():
         assert by_client["Synthetic Completed"]["status"] == "completed"
         summary = get("/owner/finances/summary", year=today.year, month=today.month)
         assert summary["income_kopecks"] == 150000
-        assert summary["expense_kopecks"] == 30000
-        assert summary["balance_kopecks"] == 120000
+        assert summary["expense_kopecks"] == 30025
+        assert summary["balance_kopecks"] == 119975
         materials = get("/owner/materials")["materials"]
         assert len(materials) == 1
         assert materials[0]["name"] == "Synthetic material"

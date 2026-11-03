@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -30,6 +31,10 @@ fun formatCash(kopecks: Long): String {
     val kopecksRemainder = abs % 100
     return "$sign$rubles,${kopecksRemainder.toString().padStart(2, '0')} ₽"
 }
+
+fun parseCash(raw: String): Long? = try {
+    BigDecimal(raw.replace(",", ".")).movePointRight(2).longValueExact().takeIf { it > 0 }
+} catch (_: ArithmeticException) { null } catch (_: NumberFormatException) { null }
 
 @Composable
 fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
@@ -102,12 +107,11 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
         }
         OutlinedTextField(
             value = amountRubles,
-            onValueChange = { value -> if (value.all(Char::isDigit)) amountRubles = value },
-            label = { Text("Сумма в целых рублях") },
+            onValueChange = { value -> if (value.all { it.isDigit() || it == ',' || it == '.' }) amountRubles = value },
+            label = { Text("Сумма, ₽") },
             modifier = Modifier.fillMaxWidth(),
         )
-        val kopecks = amountRubles.toLongOrNull()?.takeIf { it > 0 && it <= Long.MAX_VALUE / 100 }
-            ?.times(100)
+        val kopecks = parseCash(amountRubles)
         Button(
             onClick = {
                 if (kopecks != null) scope.launch {
