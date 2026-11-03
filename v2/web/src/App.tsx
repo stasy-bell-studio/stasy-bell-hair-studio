@@ -11,8 +11,11 @@ const studioAddress = "Санкт-Петербург, ул. Ольги Берг�
 const mapLink = "https://yandex.ru/maps/?text=" + encodeURIComponent(studioAddress);
 
 function Booking() {
+  const configured = Boolean(API_URL);
   const [services, setServices] = useState<Service[]>([]);
   const [channels, setChannels] = useState({ telegram: false, vk: false });
+  const [catalogLoading, setCatalogLoading] = useState(configured);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [serviceId, setServiceId] = useState("");
   const [day, setDay] = useState(formatMoscowNow());
   const [slots, setSlots] = useState<string[]>([]);
@@ -25,7 +28,6 @@ function Booking() {
   const [error, setError] = useState("");
   const [hold, setHold] = useState<Hold | null>(null);
   const [holdStatus, setHoldStatus] = useState("pending_channel");
-  const configured = Boolean(API_URL);
 
   useEffect(() => {
     if (!configured) return;
@@ -39,19 +41,25 @@ function Booking() {
         setChannels(configuredChannels);
         setChannel(configuredChannels.telegram ? "telegram" : "vk");
       }
-    }).catch((err: Error) => { if (!stale) setError(err.message); });
+    }).catch((err: Error) => { if (!stale) setError(err.message); })
+      .finally(() => { if (!stale) setCatalogLoading(false); });
     return () => { stale = true; };
   }, [configured]);
 
   useEffect(() => {
     setSlots([]);
     setSlot("");
-    if (!serviceId || !day || !configured) return;
+    if (!serviceId || !day || !configured) {
+      setAvailabilityLoading(false);
+      return;
+    }
     let stale = false;
+    setAvailabilityLoading(true);
     const params = new URLSearchParams({ day, service_id: serviceId });
     requestApi<{ starts_at: string[] }>("/public/availability?" + params)
       .then((data) => { if (!stale) { setSlots(data.starts_at); setError(""); } })
-      .catch((err: Error) => { if (!stale) setError(err.message); });
+      .catch((err: Error) => { if (!stale) setError(err.message); })
+      .finally(() => { if (!stale) setAvailabilityLoading(false); });
     return () => { stale = true; };
   }, [serviceId, day, configured]);
 
@@ -125,6 +133,7 @@ function Booking() {
             <div><strong>45 минут</strong><span>время на подтверждение заявки</span></div>
             <div><strong>15 минут</strong><span>действует один код подтверждения</span></div>
           </div>
+          <p className="payment-note">Оплата на сайте не принимается. Стоимость процедуры согласуется с мастером отдельно.</p>
           <p className="fineprint">До подтверждения в мессенджере время только временно зарезервировано. Бронь не равна подтверждённой записи.</p>
         </div>
         <div className="booking-form">
@@ -139,27 +148,29 @@ function Booking() {
             <>
               <h3>Выбрать время</h3>
               <label className="field-label" htmlFor="service">Процедура</label>
-              <select id="service" value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+              <select id="service" value={serviceId} onChange={(e) => setServiceId(e.target.value)} required>
                 <option value="">Выберите услугу</option>
                 {services.map((service) => (
                   <option value={service.id} key={service.id}>
                     {service.name}{service.variant ? " · " + service.variant : ""}
                     {service.price_kopecks != null ? " · " + (service.price_kopecks / 100).toLocaleString("ru-RU") + " ₽" : ""}
+                    {" · " + service.duration_minutes + " мин"}
                   </option>
                 ))}
               </select>
               <label className="field-label" htmlFor="booking-day">Дата</label>
-              <input id="booking-day" type="date" min={formatMoscowNow()} value={day}
+              <input id="booking-day" type="date" min={formatMoscowNow()} value={day} required
                 onChange={(e) => setDay(e.target.value)} />
               <label className="field-label" htmlFor="booking-time">Свободное время</label>
-              <select id="booking-time" value={slot} onChange={(e) => setSlot(e.target.value)}>
-                <option value="">Выберите время</option>
+              <select id="booking-time" value={slot} disabled={!serviceId || availabilityLoading || slots.length === 0}
+                onChange={(e) => setSlot(e.target.value)} required>
+                <option value="">{availabilityLoading ? "Ищем свободное время…" : "Выберите время"}</option>
                 {slots.map((when) => <option key={when} value={when}>{clockMoscow(when)}</option>)}
               </select>
               <label className="field-label" htmlFor="client-name">Как к вам обращаться</label>
-              <input id="client-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={200} />
+              <input id="client-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" maxLength={200} required />
               <label className="field-label" htmlFor="phone">Телефон (необязательно)</label>
-              <input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" maxLength={40} inputMode="tel" />
+              <input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" maxLength={40} inputMode="tel" />
               {!channels.telegram && !channels.vk && <p className="fineprint">Подтверждение через мессенджеры ещё не подключено. Используйте прямую связь с мастером.</p>}
               <fieldset className="channel-choice">
                 <legend className="field-label">Подтверждение в мессенджере</legend>
@@ -173,7 +184,13 @@ function Booking() {
               <button className="button primary wide" type="button" disabled={!serviceId || !slot || !name.trim() || !consent || busy || !channels[channel]} onClick={reserve}>
                 {busy ? "Создаём заявку…" : "Зарезервировать время"}
               </button>
-              {services.length === 0 && <p className="fineprint">Услуги для онлайн-записи пока не настроены мастером.</p>}
+              {catalogLoading && <p className="loading-note" role="status">Загружаем доступные услуги…</p>}
+              {!catalogLoading && services.length === 0 && !error &&
+                <p className="fineprint">Услуги для онлайн-записи пока не настроены мастером.</p>}
+              {serviceId && availabilityLoading &&
+                <p className="loading-note" role="status">Проверяем свободные окна…</p>}
+              {serviceId && !availabilityLoading && slots.length === 0 && !error &&
+                <p className="fineprint" role="status">На выбранную дату свободных окон нет. Выберите другую дату или напишите мастеру.</p>}
             </>
           )}
           {configured && hold && (
@@ -213,6 +230,7 @@ function Booking() {
 function App() {
   return (
     <>
+      <a href="#home" className="skip-link">Перейти к содержимому</a>
       <header className="site-header">
         <nav className="container navigation" aria-label="Основная навигация">
           <a href="#home" className="wordmark">STASY <em>BELL</em><small>HAIR STUDIO</small></a>
