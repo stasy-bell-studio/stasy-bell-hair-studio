@@ -32,7 +32,7 @@ fun formatCash(kopecks: Long): String {
 }
 
 @Composable
-fun FinancePanel(api: ApiClient, token: String) {
+fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
     val scope = rememberCoroutineScope()
     val period = remember { LocalDate.now(ZoneId.of("Europe/Moscow")) }
     var totals by remember { mutableStateOf<CashSummary?>(null) }
@@ -115,6 +115,7 @@ fun FinancePanel(api: ApiClient, token: String) {
                     try {
                         api.addCash(token, kind, category, kopecks)
                         amountRubles = ""
+                        onChanged()
                         try {
                             totals = api.financeSummary(token, period.year, period.monthValue)
                             transactions = api.financeTransactions(token, period.year, period.monthValue)

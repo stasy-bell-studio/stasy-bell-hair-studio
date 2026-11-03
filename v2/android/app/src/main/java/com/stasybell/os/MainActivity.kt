@@ -79,6 +79,7 @@ fun MasterApp() {
     fun refresh(currentToken: String) {
         scope.launch {
             busy = true
+            cash = null
             try {
                 services = api.services(currentToken)
                 clients = api.clients(currentToken)
@@ -237,7 +238,7 @@ fun MasterApp() {
                         ServicesPanel(api, activeToken, services) { refresh(activeToken) }
                     }
                     "Финансы" -> {
-                        FinancePanel(api = api, token = activeToken)
+                        FinancePanel(api = api, token = activeToken, onChanged = { refresh(activeToken) })
                     }
                     "Материалы" -> {
                         MaterialsPanel(api, activeToken)

@@ -179,6 +179,9 @@ class CloudAcceptanceTest {
         if (!history.isDisplayed()) history.performScrollTo()
         history.assertIsDisplayed()
         screenshot("10-finance-history")
+        click("Сегодня")
+        waitFor("1500,00 ₽")
+        screenshot("10-today-after-cash")
 
         click("Ещё")
         click("Материалы")

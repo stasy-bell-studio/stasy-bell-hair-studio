@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -81,7 +82,8 @@ fun CalendarPanel(
         Text("Календарь", style = MaterialTheme.typography.titleLarge)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("День", "Неделя", "Месяц").forEach { mode ->
-                TextButton(onClick = { rangeMode = mode }, modifier = Modifier.weight(1f)) { Text(mode) }
+                FilterChip(selected = rangeMode == mode, onClick = { rangeMode = mode },
+                    label = { Text(mode) }, modifier = Modifier.weight(1f))
             }
         }
         if (rangeMode != "Ближайшие") {
