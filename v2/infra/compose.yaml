@@ -1,0 +1,47 @@
+name: stasy-bell-v2-local
+services:
+  db:
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  api:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    restart: "no"
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?required}
+      JWT_SECRET: ${JWT_SECRET:?required}
+      STASY_ALLOWED_WEB_ORIGINS: ${STASY_ALLOWED_WEB_ORIGINS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+  worker:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.expire_worker"]
+    profiles: ["worker"]
+    restart: "no"
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?required}
+      JWT_SECRET: ${JWT_SECRET:?required}
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  pgdata:
