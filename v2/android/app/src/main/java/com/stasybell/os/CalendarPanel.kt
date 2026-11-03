@@ -55,6 +55,8 @@ fun CalendarPanel(
     var rangeVisits by remember { mutableStateOf(visits) }
     var rangeLoading by remember { mutableStateOf(false) }
     var rangeError by remember { mutableStateOf("") }
+    var dateDialog by remember { mutableStateOf(false) }
+    var targetDate by remember { mutableStateOf(anchor.format(studioDateFormat)) }
 
     val from = when (rangeMode) {
         "День" -> anchor
@@ -119,6 +121,13 @@ fun CalendarPanel(
         val display = DateTimeFormatter.ofPattern("dd.MM.yyyy")
         Text(if (from == to) from.format(display) else "${from.format(display)} — ${to.format(display)}",
             style = MaterialTheme.typography.titleMedium)
+        TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
+            Text("Перейти к дате")
+        }
+        if (!rangeLoading && rangeError.isBlank()) {
+            val count = rangeVisits.count { it.kind == "appointment" && it.status !in listOf("cancelled", "no_show") }
+            Text("Записей за период: $count", style = MaterialTheme.typography.bodySmall)
+        }
         if (rangeLoading) Text("Загрузка календаря…")
         if (rangeError.isNotBlank()) Text(rangeError, color = MaterialTheme.colorScheme.error)
         if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty()) Text("На выбранные даты записей нет.")
@@ -156,6 +165,27 @@ fun CalendarPanel(
             }
         }
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
+    }
+
+    if (dateDialog) {
+        AlertDialog(
+            onDismissRequest = { dateDialog = false },
+            title = { Text("Перейти к дате") },
+            text = {
+                OutlinedTextField(value = targetDate, onValueChange = { targetDate = it },
+                    label = { Text("Дата, ДД.ММ.ГГГГ") },
+                    isError = targetDate.isNotEmpty() && parseStudioDate(targetDate) == null,
+                    modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = {
+                TextButton(enabled = parseStudioDate(targetDate) != null, onClick = {
+                    anchor = requireNotNull(parseStudioDate(targetDate))
+                    rangeMode = "День"
+                    dateDialog = false
+                }) { Text("Открыть день") }
+            },
+            dismissButton = { TextButton(onClick = { dateDialog = false }) { Text("Назад") } },
+        )
     }
 
     val visit = selected

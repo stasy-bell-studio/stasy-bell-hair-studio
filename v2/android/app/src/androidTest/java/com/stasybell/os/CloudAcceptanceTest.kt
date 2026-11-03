@@ -136,6 +136,10 @@ class CloudAcceptanceTest {
         click("Месяц")
         waitFor("На выбранные даты записей нет.")
         screenshot("05-calendar-month")
+        click("Перейти к дате")
+        enter("Дата, ДД.ММ.ГГГГ", display)
+        click("Открыть день")
+        waitFor(display)
 
         book("Synthetic Move", "10:00", display)
         waitFor("$display 10:00 · Synthetic Move", substring = true)
