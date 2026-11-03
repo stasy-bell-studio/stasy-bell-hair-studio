@@ -336,7 +336,6 @@ class CloudAcceptanceTest {
         setSystemSetting("wm density 160")
         setSystemSetting("settings put system font_scale 1.5")
         try {
-            compose.waitForIdle()
             waitFor("Личный кабинет мастера")
             enter("Логин", "acceptance_owner")
             enter("Пароль", "synthetic_password_only_123")
