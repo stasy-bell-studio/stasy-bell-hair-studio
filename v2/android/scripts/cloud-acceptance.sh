@@ -18,12 +18,13 @@ gradle :app:testDebugUnitTest :app:connectedDebugAndroidTest --no-daemon -Pstasy
 python "$ROOT/v2/android/scripts/verify-cloud-state.py" | tee "$EVIDENCE/backend-verification.txt"
 # Instrumentation closes its activity after the journey. Reopen the app for
 # each image and verify it is foreground; these images require visual review.
+adb install -r "$ROOT/v2/android/app/build/outputs/apk/debug/app-debug.apk"
 adb shell wm density 160
 for size in 320x640 360x800 393x852 430x932; do
     adb shell wm size "$size"
     for scale in 1.0 1.3 1.5; do
         adb shell settings put system font_scale "$scale"
-        adb shell am start -W -n com.stasybell.os/.MainActivity > /dev/null
+        adb shell am start -W -n com.stasybell.os/.MainActivity
         sleep 2
         adb shell dumpsys activity activities | tr -d '\r' | \
             grep -E 'mResumedActivity|topResumedActivity' | grep -q 'com.stasybell.os'
