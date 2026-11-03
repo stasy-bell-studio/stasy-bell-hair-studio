@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -120,7 +119,7 @@ fun MasterApp() {
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
             )
-            Button(
+            StasyButton(
                 onClick = {
                     scope.launch {
                         busy = true
@@ -213,7 +212,7 @@ fun MasterApp() {
                             KpiValue("Поступления (факт) · месяц", cash?.let { formatCash(it.incomeKopecks) } ?: "—", Modifier.weight(1f))
                         }
                         Spacer(Modifier.height(16.dp))
-                        Button(onClick = { page = "+ Запись" }, modifier = Modifier.fillMaxWidth()) { Text("+ Запись") }
+                        StasyButton(onClick = { page = "+ Запись" }, modifier = Modifier.fillMaxWidth()) { Text("+ Запись") }
                         Spacer(Modifier.height(16.dp))
                         AppCard {
                             Text("Ближайшие визиты", style = MaterialTheme.typography.titleLarge)
@@ -361,7 +360,7 @@ fun ManualBookingForm(
             value = name, onValueChange = { name = it }, label = { Text("Имя клиента") },
             modifier = Modifier.fillMaxWidth(),
         )
-        Button(onClick = { expanded = true }) {
+        StasyButton(onClick = { expanded = true }) {
             Text(selected?.let { "${it.name} · ${it.variant ?: ""}" } ?: "Выбрать услугу")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -380,7 +379,7 @@ fun ManualBookingForm(
             label = { Text("Дата: ДД.ММ.ГГГГ") }, isError = date.isNotEmpty() && parseStudioDate(date) == null)
         OutlinedTextField(value = clock, onValueChange = { clock = it },
             label = { Text("Время: ЧЧ:ММ") })
-        Button(
+        StasyButton(
             enabled = !busy && name.isNotBlank() && selected != null && parseStudioDate(date) != null,
             onClick = { selected?.let { service -> parseStudioDate(date)?.let { day ->
                 onCreate(name.trim(), service.id, day.toString(), clock)

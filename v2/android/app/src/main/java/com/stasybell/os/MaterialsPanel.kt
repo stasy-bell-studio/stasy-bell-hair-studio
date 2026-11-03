@@ -3,7 +3,6 @@ package com.stasybell.os
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -59,7 +58,7 @@ fun MaterialsPanel(api: ApiClient, token: String) {
         materials.forEach { material ->
             AppCard {
                 Text("${material.name}: ${material.milliunits / 1000.0} ${materialUnitLabel(material.unit)}")
-                Button(onClick = { changing = if (changing == material.id) null else material.id }) {
+                StasyButton(onClick = { changing = if (changing == material.id) null else material.id }) {
                     Text("Изменить остаток · ${material.name}")
                 }
                 if (changing == material.id) {
@@ -68,7 +67,7 @@ fun MaterialsPanel(api: ApiClient, token: String) {
                     OutlinedTextField(value = reason, onValueChange = { reason = it },
                         label = { Text("Причина: закупка / процедура") })
                     val delta = parseMilliunits(quantity)
-                    Button(enabled = !busy && delta != null && reason.trim().length >= 3,
+                    StasyButton(enabled = !busy && delta != null && reason.trim().length >= 3,
                         onClick = {
                             if (delta != null) scope.launch {
                                 busy = true
@@ -80,7 +79,7 @@ fun MaterialsPanel(api: ApiClient, token: String) {
                                 finally { busy = false }
                             }
                         }) { Text("Добавить на склад") }
-                    Button(enabled = !busy && delta != null && reason.trim().length >= 3,
+                    StasyButton(enabled = !busy && delta != null && reason.trim().length >= 3,
                         onClick = {
                             if (delta != null) scope.launch {
                                 busy = true
@@ -98,10 +97,10 @@ fun MaterialsPanel(api: ApiClient, token: String) {
         Text("Новый материал", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(value = name, onValueChange = { name = it },
             label = { Text("Название состава") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = { unit = when (unit) { "g" -> "ml"; "ml" -> "pcs"; else -> "g" } }) {
+        StasyButton(onClick = { unit = when (unit) { "g" -> "ml"; "ml" -> "pcs"; else -> "g" } }) {
             Text("Единица: ${materialUnitLabel(unit)} (сменить)")
         }
-        Button(enabled = name.trim().isNotEmpty() && !busy, onClick = {
+        StasyButton(enabled = name.trim().isNotEmpty() && !busy, onClick = {
             scope.launch {
                 busy = true
                 try {
@@ -112,7 +111,7 @@ fun MaterialsPanel(api: ApiClient, token: String) {
                 finally { busy = false }
             }
         }) { Text("Добавить материал") }
-        Button(onClick = { reload() }, enabled = !busy) { Text("Обновить остатки") }
+        StasyButton(onClick = { reload() }, enabled = !busy) { Text("Обновить остатки") }
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
     }
 }

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -77,12 +76,12 @@ fun SchedulePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
         },
             label = { Text("Дата, ДД.ММ.ГГГГ") }, modifier = Modifier.fillMaxWidth(),
             isError = day.isNotEmpty() && dayIso == null, enabled = !busy)
-        Button(onClick = { load() }, enabled = !busy && dayIso != null) { Text("Обновить день") }
+        StasyButton(onClick = { load() }, enabled = !busy && dayIso != null) { Text("Обновить день") }
         OutlinedTextField(value = startOne, onValueChange = { startOne = it },
             label = { Text("Начало первого окна") })
         OutlinedTextField(value = endOne, onValueChange = { endOne = it },
             label = { Text("Конец первого окна") })
-        Button(onClick = { includeSecond = !includeSecond }) {
+        StasyButton(onClick = { includeSecond = !includeSecond }) {
             Text(if (includeSecond) "Убрать второе окно" else "Добавить второе окно")
         }
         if (includeSecond) {
@@ -91,7 +90,7 @@ fun SchedulePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
             OutlinedTextField(value = endTwo, onValueChange = { endTwo = it },
                 label = { Text("Конец второго окна") })
         }
-        Button(enabled = !busy && dayIso != null && loadedDay == dayIso, onClick = {
+        StasyButton(enabled = !busy && dayIso != null && loadedDay == dayIso, onClick = {
             val first = parseWindow(startOne, endOne)
             val second = if (includeSecond) parseWindow(startTwo, endTwo) else null
             if (first == null || (includeSecond && (second == null || first.end > second.start))) {
@@ -107,13 +106,13 @@ fun SchedulePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                 } finally { busy = false }
             }
         }) { Text("Сохранить рабочие окна") }
-        Button(enabled = !busy && dayIso != null && loadedDay == dayIso, onClick = { confirmHoliday = true }) { Text("Закрыть день (выходной)") }
+        StasyButton(enabled = !busy && dayIso != null && loadedDay == dayIso, onClick = { confirmHoliday = true }) { Text("Закрыть день (выходной)") }
         Text("Отдельно заблокировать время", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(value = blockStart, onValueChange = { blockStart = it },
             label = { Text("Начало блока") })
         OutlinedTextField(value = blockEnd, onValueChange = { blockEnd = it },
             label = { Text("Конец блока") })
-        Button(enabled = !busy && dayIso != null && loadedDay == dayIso, onClick = {
+        StasyButton(enabled = !busy && dayIso != null && loadedDay == dayIso, onClick = {
             if (parseWindow(blockStart, blockEnd) == null) {
                 error = "Некорректный интервал блока."
             } else scope.launch {

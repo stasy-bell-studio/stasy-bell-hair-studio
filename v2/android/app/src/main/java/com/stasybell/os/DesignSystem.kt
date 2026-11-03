@@ -3,11 +3,14 @@ package com.stasybell.os
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
@@ -77,6 +80,17 @@ private val shapes = Shapes(
 @Composable
 fun StasyTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = colors, typography = typography, shapes = shapes, content = content)
+}
+
+@Composable
+fun StasyButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Button(onClick = onClick, modifier = modifier.heightIn(min = 48.dp), enabled = enabled,
+        shape = MaterialTheme.shapes.small, content = content)
 }
 
 @Composable

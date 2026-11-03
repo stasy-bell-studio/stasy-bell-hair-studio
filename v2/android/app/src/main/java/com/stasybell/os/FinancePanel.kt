@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -87,16 +86,16 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
             }
             if (it.isClosed) Text("Месяц закрыт: добавление операций заблокировано.")
         }
-        Button(onClick = { refresh() }, enabled = !loading) { Text("Обновить суммы") }
+        StasyButton(onClick = { refresh() }, enabled = !loading) { Text("Обновить суммы") }
         Text("Новая операция", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = {
+        StasyButton(onClick = {
             kind = if (kind == "income") "expense" else "income"
             category = if (kind == "income") "materials" else "other"
         }) {
             Text(if (kind == "income") "Доход — переключить на расход"
                 else "Расход — переключить на доход")
         }
-        Button(onClick = { dropdown = true }) {
+        StasyButton(onClick = { dropdown = true }) {
             Text(choices.firstOrNull { it.first == category }?.second ?: "Выбрать категорию")
         }
         DropdownMenu(expanded = dropdown, onDismissRequest = { dropdown = false }) {
@@ -112,7 +111,7 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
         )
         val kopecks = parseCash(amountRubles)
-        Button(
+        StasyButton(
             onClick = {
                 if (kopecks != null) scope.launch {
                     loading = true

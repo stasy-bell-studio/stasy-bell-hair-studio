@@ -3,7 +3,6 @@ package com.stasybell.os
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -44,7 +43,7 @@ fun ServicesPanel(
             AppCard {
                 Text("${item.name} ${item.variant ?: ""}: " +
                     "${item.priceKopecks?.let { formatCash(it.toLong()) } ?: "—"} · ${item.minutes ?: "—"} мин")
-                Button(onClick = {
+                StasyButton(onClick = {
                     editingId = item.id
                     name = item.name; variant = item.variant.orEmpty()
                     price = item.priceKopecks?.let { BigDecimal.valueOf(it.toLong(), 2).toPlainString() }.orEmpty()
@@ -68,7 +67,7 @@ fun ServicesPanel(
         val cost = rublesToKopecks(price)
         val minutes = duration.toIntOrNull()?.takeIf { it in 1..1440 }
         val gap = buffer.toIntOrNull()?.takeIf { it in 0..1440 }
-        Button(
+        StasyButton(
             enabled = !busy && name.isNotBlank() && cost != null &&
                 minutes != null && gap != null,
             onClick = {
