@@ -28,6 +28,12 @@ import org.junit.runner.RunWith
 class CloudAcceptanceTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    private fun setSystemSetting(command: String) {
+        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand(command)
+        ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+    }
+
     private fun waitFor(text: String, substring: Boolean = false) {
         compose.waitUntil(timeoutMillis = 20_000) {
             compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
@@ -213,6 +219,7 @@ class CloudAcceptanceTest {
 
         click("Финансы")
         waitFor("Поступления: 0,00 ₽")
+        screenshot("10-finance-overview")
         enter("Сумма, ₽", "1500")
         click("Записать фактическую операцию")
         waitFor("Поступления: 1500,00 ₽")
@@ -223,6 +230,7 @@ class CloudAcceptanceTest {
         click("Записать фактическую операцию")
         waitFor("Расходы: 300,25 ₽")
         waitFor("Денежная разница: 1199,75 ₽")
+        compose.onNodeWithText("Финансы ·", substring = true).performScrollTo()
         screenshot("10-finance")
         waitFor("Расход · Материалы")
         val history = compose.onNodeWithText("Расход · Материалы")
@@ -277,5 +285,56 @@ class CloudAcceptanceTest {
         click("Выход")
         waitFor("Личный кабинет мастера")
         screenshot("12-logout")
+    }
+
+    @Test fun keyScreensRemainNavigableAtLargeSystemFont() {
+        setSystemSetting("wm size 320x640")
+        setSystemSetting("wm density 160")
+        setSystemSetting("settings put system font_scale 1.5")
+        try {
+            compose.waitForIdle()
+            waitFor("Личный кабинет мастера")
+            enter("Логин", "acceptance_owner")
+            enter("Пароль", "synthetic_password_only_123")
+            click("Войти")
+            waitFor("Ближайшие визиты")
+            screenshot("13-today-font-1.5")
+
+            click("Календарь")
+            click("Неделя")
+            waitFor("Записей за период:", substring = true)
+            screenshot("13-calendar-week-font-1.5")
+            click("Месяц")
+            screenshot("13-calendar-month-font-1.5")
+
+            click("Финансы")
+            waitFor("Новая операция")
+            screenshot("13-finance-font-1.5")
+            click("Клиенты")
+            waitFor("Поиск по имени или телефону")
+            screenshot("13-clients-font-1.5")
+
+            click("Ещё")
+            click("График")
+            waitFor("Рабочий график")
+            screenshot("13-schedule-font-1.5")
+            click("Ещё")
+            click("Услуги")
+            waitFor("Услуги и длительность")
+            screenshot("13-services-font-1.5")
+            click("Ещё")
+            click("Материалы")
+            waitFor("Новый материал")
+            screenshot("13-materials-font-1.5")
+            click("Ещё")
+            click("+ Запись")
+            waitFor("Ручная запись")
+            screenshot("13-booking-font-1.5")
+            click("Выход")
+        } finally {
+            setSystemSetting("settings put system font_scale 1.0")
+            setSystemSetting("wm size reset")
+            setSystemSetting("wm density reset")
+        }
     }
 }

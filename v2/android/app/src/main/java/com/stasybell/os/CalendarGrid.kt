@@ -1,7 +1,6 @@
 package com.stasybell.os
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,8 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -48,16 +45,15 @@ fun CalendarDateGrid(
     showWeekdaysInCells: Boolean,
     onSelect: (LocalDate) -> Unit,
 ) {
-    val scroll = rememberScrollState()
     val dateFormat = DateTimeFormatter.ofPattern("dd.MM.uuuu")
     val weekLabels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
     if (!showWeekdaysInCells) {
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(scroll),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             weekLabels.forEach { label ->
-                Text(label, modifier = Modifier.width(48.dp).padding(vertical = 8.dp),
+                Text(label, modifier = Modifier.weight(1f).padding(vertical = 8.dp),
                     textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall,
                     color = StasyColors.Muted)
             }
@@ -66,7 +62,7 @@ fun CalendarDateGrid(
 
     dates.chunked(7).forEach { week ->
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(scroll),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             week.forEach { date ->
@@ -75,9 +71,13 @@ fun CalendarDateGrid(
                 val isSelected = date == anchor
                 Card(
                     onClick = { onSelect(date) },
-                    modifier = Modifier.width(48.dp).heightIn(min = if (showWeekdaysInCells) 72.dp else 56.dp)
+                    modifier = Modifier.weight(1f).heightIn(min = if (showWeekdaysInCells) 72.dp else 56.dp)
                         .semantics(mergeDescendants = true) {
-                            contentDescription = "Выбрать ${date.format(dateFormat)}, записей: $count"
+                            contentDescription = if (showWeekdaysInCells || isInMonth) {
+                                "Выбрать ${date.format(dateFormat)}, записей: $count"
+                            } else {
+                                "Открыть ${date.format(dateFormat)}, день загрузится отдельно"
+                            }
                             this.selected = isSelected
                         },
                     shape = MaterialTheme.shapes.small,

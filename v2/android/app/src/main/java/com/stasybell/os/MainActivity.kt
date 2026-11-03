@@ -168,7 +168,8 @@ fun MasterApp() {
             },
         ) { padding ->
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
+                modifier = Modifier.fillMaxSize().padding(padding)
+                    .padding(horizontal = if (page == "Календарь") 4.dp else 16.dp, vertical = 16.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
