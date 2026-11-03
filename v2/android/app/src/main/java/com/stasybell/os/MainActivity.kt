@@ -193,6 +193,10 @@ fun MasterApp() {
                         val todayVisits = appointments.filter { it.localTime.startsWith(today.format(
                             java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
                         )) }
+                        val upcoming = appointments.filter {
+                            it.status in listOf("confirmed", "pending_channel") &&
+                                java.time.OffsetDateTime.parse(it.startsAt).isAfter(java.time.OffsetDateTime.now())
+                        }.take(4)
                         Surface(shape = MaterialTheme.shapes.large, color = StasyColors.PrimaryDeep) {
                             Column(Modifier.fillMaxWidth().background(Brush.linearGradient(
                                 listOf(StasyColors.Forest, StasyColors.PrimaryDeep, StasyColors.Primary)
@@ -214,8 +218,8 @@ fun MasterApp() {
                         AppCard {
                             Text("Ближайшие визиты", style = MaterialTheme.typography.titleLarge)
                             Spacer(Modifier.height(8.dp))
-                            if (todayVisits.isEmpty()) Text("Сегодня записей нет.", color = StasyColors.Body)
-                            todayVisits.forEach { visit ->
+                            if (upcoming.isEmpty()) Text("На ближайшие дни записей нет.", color = StasyColors.Body)
+                            upcoming.forEach { visit ->
                                 val client = clients.find { it.id == visit.clientId }?.name ?: "Без клиента"
                                 val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
                                 Text("${visit.localTime} · $client · $service")
