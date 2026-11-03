@@ -32,9 +32,12 @@ class CloudAcceptanceTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
     private fun setSystemSetting(command: String) {
+        val settingName = command.substringBefore(' ')
+        android.util.Log.i("CloudAcceptanceTest", "setting-start:$settingName")
         val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
             .executeShellCommand(command)
         ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+        android.util.Log.i("CloudAcceptanceTest", "setting-complete:$settingName")
     }
 
     private fun waitFor(text: String, substring: Boolean = false) {
@@ -73,6 +76,7 @@ class CloudAcceptanceTest {
     }
 
     private fun screenshot(name: String) {
+        android.util.Log.i("CloudAcceptanceTest", "screenshot-start:$name")
         compose.activity.runOnUiThread {
             val focus = compose.activity.currentFocus
             val keyboard = compose.activity.getSystemService(Context.INPUT_METHOD_SERVICE)
@@ -87,6 +91,7 @@ class CloudAcceptanceTest {
                 ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))
                     .use { it.readBytes() }
             }
+        android.util.Log.i("CloudAcceptanceTest", "screenshot-complete:$name")
     }
 
     private fun book(client: String, time: String, day: String) {
@@ -332,11 +337,13 @@ class CloudAcceptanceTest {
     }
 
     @Test fun keyScreensRemainNavigableAtLargeSystemFont() {
+        android.util.Log.i("CloudAcceptanceTest", "large-font-test-start")
         setSystemSetting("wm size 320x640")
         setSystemSetting("wm density 160")
         setSystemSetting("settings put system font_scale 1.5")
         try {
             waitFor("Личный кабинет мастера")
+            android.util.Log.i("CloudAcceptanceTest", "large-font-login-visible")
             enter("Логин", "acceptance_owner")
             enter("Пароль", "synthetic_password_only_123")
             click("Войти")
