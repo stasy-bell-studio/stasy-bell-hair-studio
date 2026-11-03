@@ -16,7 +16,7 @@ data class ServiceItem(
     val id: String, val name: String, val variant: String?,
     val minutes: Int?, val priceKopecks: Int?, val bufferMinutes: Int,
 )
-data class ClientItem(val id: String, val name: String)
+data class ClientItem(val id: String, val name: String, val phone: String?)
 data class CashSummary(
     val incomeKopecks: Long,
     val expenseKopecks: Long,
@@ -118,7 +118,8 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         val rows: JSONArray = call("GET", "owner/clients", token = token).getJSONArray("clients")
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
-            ClientItem(row.getString("id"), row.getString("name"))
+            ClientItem(row.getString("id"), row.getString("name"),
+                row.optString("phone").takeIf { it.isNotBlank() && it != "null" })
         }
     }
 

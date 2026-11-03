@@ -146,6 +146,8 @@ class CloudAcceptanceTest {
         val client = compose.onNodeWithText("Synthetic Completed")
         if (!client.isDisplayed()) client.performScrollTo()
         client.assertIsDisplayed()
+        enter("Поиск по имени или телефону", "Synthetic Completed")
+        waitFor("Synthetic Completed")
         screenshot("09-clients")
 
         click("Финансы")

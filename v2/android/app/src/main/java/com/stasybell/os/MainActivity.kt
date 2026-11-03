@@ -225,8 +225,7 @@ fun MasterApp() {
                         SchedulePanel(api, activeToken) { refresh(activeToken) }
                     }
                     "Клиенты" -> {
-                        Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
-                        clients.forEach { client -> Text(client.name) }
+                        ClientsPanel(clients)
                     }
                     "Услуги" -> {
                         ServicesPanel(api, activeToken, services) { refresh(activeToken) }
@@ -267,6 +266,30 @@ fun MasterApp() {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ClientsPanel(clients: List<ClientItem>) {
+    var query by remember { mutableStateOf("") }
+    val filtered = clients.filter {
+        it.name.contains(query.trim(), ignoreCase = true) ||
+            (it.phone?.contains(query.trim(), ignoreCase = true) == true)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
+        OutlinedTextField(value = query, onValueChange = { query = it },
+            label = { Text("Поиск по имени или телефону") },
+            modifier = Modifier.fillMaxWidth(), singleLine = true)
+        if (filtered.isEmpty()) {
+            Text(if (clients.isEmpty()) "Клиентов пока нет." else "Клиенты не найдены.")
+        }
+        filtered.forEach { client ->
+            AppCard {
+                Text(client.name, style = MaterialTheme.typography.titleMedium)
+                client.phone?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
         }
     }
