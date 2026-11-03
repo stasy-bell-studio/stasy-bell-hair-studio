@@ -2,6 +2,7 @@ package com.stasybell.os
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -10,6 +11,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +22,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
+import java.time.DayOfWeek
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun CalendarPanel(
@@ -33,6 +38,39 @@ fun CalendarPanel(
     var moveTime by remember { mutableStateOf("10:00") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var rangeMode by remember { mutableStateOf("Ближайшие") }
+    var anchor by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow"))) }
+    var rangeVisits by remember { mutableStateOf(visits) }
+    var rangeLoading by remember { mutableStateOf(false) }
+    var rangeError by remember { mutableStateOf("") }
+
+    val from = when (rangeMode) {
+        "День" -> anchor
+        "Неделя" -> anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        "Месяц" -> anchor.withDayOfMonth(1)
+        else -> LocalDate.now(ZoneId.of("Europe/Moscow"))
+    }
+    val to = when (rangeMode) {
+        "День" -> from
+        "Неделя" -> from.plusDays(6)
+        "Месяц" -> from.with(TemporalAdjusters.lastDayOfMonth())
+        else -> from.plusDays(7)
+    }
+    LaunchedEffect(token, rangeMode, from, to, visits) {
+        if (rangeMode == "Ближайшие") {
+            rangeVisits = visits
+            rangeError = ""
+        } else {
+            rangeLoading = true
+            rangeVisits = emptyList()
+            try {
+                rangeVisits = api.visits(token, from, to)
+                rangeError = ""
+            } catch (ex: Exception) {
+                rangeError = "Не удалось загрузить календарь: ${ex.message}"
+            } finally { rangeLoading = false }
+        }
+    }
 
     fun request(visit: VisitItem, action: String) {
         selected = visit
@@ -40,9 +78,38 @@ fun CalendarPanel(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Календарь · ближайшие 8 дней", style = MaterialTheme.typography.titleLarge)
-        if (visits.isEmpty()) Text("На выбранные даты записей нет.")
-        visits.forEach { visit ->
+        Text("Календарь", style = MaterialTheme.typography.titleLarge)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf("День", "Неделя", "Месяц").forEach { mode ->
+                TextButton(onClick = { rangeMode = mode }, modifier = Modifier.weight(1f)) { Text(mode) }
+            }
+        }
+        if (rangeMode != "Ближайшие") {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = {
+                    anchor = when (rangeMode) {
+                        "День" -> anchor.minusDays(1)
+                        "Неделя" -> anchor.minusWeeks(1)
+                        else -> anchor.minusMonths(1)
+                    }
+                }) { Text("Назад") }
+                TextButton(onClick = { anchor = LocalDate.now(ZoneId.of("Europe/Moscow")) }) { Text("Сегодня") }
+                TextButton(onClick = {
+                    anchor = when (rangeMode) {
+                        "День" -> anchor.plusDays(1)
+                        "Неделя" -> anchor.plusWeeks(1)
+                        else -> anchor.plusMonths(1)
+                    }
+                }) { Text("Вперёд") }
+            }
+        }
+        val display = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+        Text(if (from == to) from.format(display) else "${from.format(display)} — ${to.format(display)}",
+            style = MaterialTheme.typography.titleMedium)
+        if (rangeLoading) Text("Загрузка календаря…")
+        if (rangeError.isNotBlank()) Text(rangeError, color = MaterialTheme.colorScheme.error)
+        if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty()) Text("На выбранные даты записей нет.")
+        rangeVisits.forEach { visit ->
             val client = clients.find { it.id == visit.clientId }?.name ?: "Без клиента"
             val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
             AppCard {

@@ -120,6 +120,17 @@ class CloudAcceptanceTest {
         waitFor("Synthetic service : 1200,50 ₽", substring = true)
         screenshot("05-service-edited")
 
+        click("Календарь")
+        click("День")
+        waitFor("На выбранные даты записей нет.")
+        screenshot("05-calendar-day")
+        click("Неделя")
+        waitFor("На выбранные даты записей нет.")
+        screenshot("05-calendar-week")
+        click("Месяц")
+        waitFor("На выбранные даты записей нет.")
+        screenshot("05-calendar-month")
+
         book("Synthetic Move", "10:00", iso)
         waitFor("$display 10:00 · Synthetic Move", substring = true)
         screenshot("06-calendar")

@@ -123,9 +123,8 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         }
     }
 
-    suspend fun visits(token: String, today: LocalDate): List<VisitItem> {
-        val end = today.plusDays(7)
-        val rows = call("GET", "owner/calendar?from_day=$today&to_day=$end",
+    suspend fun visits(token: String, from: LocalDate, to: LocalDate = from.plusDays(7)): List<VisitItem> {
+        val rows = call("GET", "owner/calendar?from_day=$from&to_day=$to",
             token = token).getJSONArray("entries")
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
