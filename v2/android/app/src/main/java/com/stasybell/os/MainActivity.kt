@@ -232,7 +232,7 @@ fun MasterApp() {
                         SchedulePanel(api, activeToken) { refresh(activeToken) }
                     }
                     "Клиенты" -> {
-                        ClientsPanel(clients)
+                        ClientsPanel(clients, visits, services)
                     }
                     "Услуги" -> {
                         ServicesPanel(api, activeToken, services) { refresh(activeToken) }
@@ -293,24 +293,47 @@ fun MasterApp() {
 }
 
 @Composable
-fun ClientsPanel(clients: List<ClientItem>) {
+fun ClientsPanel(clients: List<ClientItem>, visits: List<VisitItem>, services: List<ServiceItem>) {
     var query by remember { mutableStateOf("") }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    val selected = clients.find { it.id == selectedId }
     val filtered = clients.filter {
         it.name.contains(query.trim(), ignoreCase = true) ||
             (it.phone?.contains(query.trim(), ignoreCase = true) == true)
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
-        OutlinedTextField(value = query, onValueChange = { query = it },
-            label = { Text("Поиск по имени или телефону") },
-            modifier = Modifier.fillMaxWidth(), singleLine = true)
-        if (filtered.isEmpty()) {
-            Text(if (clients.isEmpty()) "Клиентов пока нет." else "Клиенты не найдены.")
-        }
-        filtered.forEach { client ->
+        if (selected != null) {
+            Text("Карточка клиента", style = MaterialTheme.typography.titleLarge)
             AppCard {
-                Text(client.name, style = MaterialTheme.typography.titleMedium)
-                client.phone?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                Text(selected.name, style = MaterialTheme.typography.titleMedium)
+                Text(selected.phone ?: "Телефон не указан")
+            }
+            Text("Записи на ближайшие 8 дней", style = MaterialTheme.typography.titleMedium)
+            val clientVisits = visits.filter { it.clientId == selected.id }
+            if (clientVisits.isEmpty()) Text("Записей за этот период нет.")
+            clientVisits.forEach { visit ->
+                val service = services.find { it.id == visit.serviceId }?.name ?: "Услуга не указана"
+                AppCard {
+                    Text("${visit.localTime} · $service")
+                    Text(visitStatusLabel(visit.status), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Text("Полная история клиента пока недоступна.", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { selectedId = null }) { Text("Назад к клиентам") }
+        } else {
+            Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
+            OutlinedTextField(value = query, onValueChange = { query = it },
+                label = { Text("Поиск по имени или телефону") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true)
+            if (filtered.isEmpty()) {
+                Text(if (clients.isEmpty()) "Клиентов пока нет." else "Клиенты не найдены.")
+            }
+            filtered.forEach { client ->
+                AppCard {
+                    Text(client.name, style = MaterialTheme.typography.titleMedium)
+                    client.phone?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    TextButton(onClick = { selectedId = client.id }) { Text("Подробнее · ${client.name}") }
+                }
             }
         }
     }

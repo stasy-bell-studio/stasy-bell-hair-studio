@@ -167,6 +167,11 @@ class CloudAcceptanceTest {
         enter("Поиск по имени или телефону", "Synthetic Completed")
         waitFor("Synthetic Completed")
         screenshot("09-clients")
+        click("Подробнее · Synthetic Completed")
+        waitFor("Карточка клиента")
+        waitFor("Полная история клиента пока недоступна.")
+        screenshot("09-client-detail")
+        click("Назад к клиентам")
 
         click("Финансы")
         waitFor("Поступления: 0,00 ₽")

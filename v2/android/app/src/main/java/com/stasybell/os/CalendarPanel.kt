@@ -27,6 +27,17 @@ import java.time.temporal.TemporalAdjusters
 import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 
+fun visitStatusLabel(status: String): String = when (status) {
+    "confirmed" -> "Подтверждена"
+    "completed" -> "Выполнена"
+    "cancelled" -> "Отменена"
+    "no_show" -> "Не пришёл"
+    "pending_channel" -> "Ожидает подтверждения"
+    "expired" -> "Срок подтверждения истёк"
+    "blocked" -> "Время заблокировано"
+    else -> status
+}
+
 @Composable
 fun CalendarPanel(
     api: ApiClient, token: String, visits: List<VisitItem>,
@@ -116,13 +127,7 @@ fun CalendarPanel(
             val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
             AppCard {
                 Text("${visit.localTime} · $client · $service", style = MaterialTheme.typography.titleMedium)
-                val status = when (visit.status) {
-                    "confirmed" -> "Подтверждена"
-                    "completed" -> "Выполнена"
-                    "cancelled" -> "Отменена"
-                    "no_show" -> "Не пришёл"
-                    else -> visit.status
-                }
+                val status = visitStatusLabel(visit.status)
                 val source = when (visit.source) {
                     "phone" -> "вручную"
                     else -> visit.source
