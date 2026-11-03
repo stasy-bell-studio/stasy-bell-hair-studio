@@ -68,17 +68,21 @@ async function mockPublicApi(page: Page) {
 test("Sage landing page stays within the approved responsive widths", async ({ page }, testInfo) => {
   await mockPublicApi(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Волосы, в которых");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Stasy Bell");
+  await expect(page.getByText("Волосы, в которых")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Меню красоты" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "До встречи в студии." })).toBeVisible();
   await expect(page.getByText("Оплата на сайте не принимается.")).toBeVisible();
 
   for (const width of [320, 375, 425, 768, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
+    await page.setViewportSize({ width, height: width === 1440 ? 1040 : 900 });
     await page.evaluate(() => document.fonts.ready);
     const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(documentWidth, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(width);
     await page.screenshot({ path: testInfo.outputPath(`site-${width}.png`), fullPage: true });
+    if (width === 1440 || width === 375) {
+      await page.screenshot({ path: testInfo.outputPath(`site-${width}-viewport.png`) });
+    }
   }
 });
 

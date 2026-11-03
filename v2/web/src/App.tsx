@@ -4,6 +4,8 @@ import { priceGroups } from "./prices";
 import masterPhoto from "../../../src/assets/master-photo.png";
 import portfolioOne from "../../../src/assets/portfolio-1.png";
 import portfolioTwo from "../../../src/assets/portfolio-2.png";
+import portfolioThree from "../../../src/assets/portfolio-3.png";
+import { ArrowRight, Leaf, Sparkles, Heart, Scissors } from "lucide-react";
 
 const contactTelegram = "https://t.me/Stasy10";
 const contactVK = "https://vk.com/im?sel=829464173";
@@ -233,24 +235,46 @@ function App() {
       <a href="#home" className="skip-link">Перейти к содержимому</a>
       <header className="site-header">
         <nav className="container navigation" aria-label="Основная навигация">
-          <a href="#home" className="wordmark">STASY <em>BELL</em><small>HAIR STUDIO</small></a>
+          <a href="#home" className="wordmark"><Leaf aria-hidden="true" strokeWidth={1.2} /><span>Stasy <em>Bell</em><small>HAIR STUDIO</small></span></a>
           <div className="nav-links"><a href="#about">О мастере</a><a href="#services">Услуги и цены</a><a href="#contacts">Контакты</a></div>
-          <a href="#booking" className="button nav-book">Записаться</a>
+          <a href="#booking" className="button primary nav-book">Записаться</a>
         </nav>
       </header>
       <main id="home">
         <section className="hero">
           <div className="container hero-grid">
             <div className="hero-copy">
-              <span className="eyebrow">HAIR CARE STUDIO · САНКТ-ПЕТЕРБУРГ</span>
-              <h1>Волосы, в которых <em>ты — это ты.</em></h1>
+              <span className="eyebrow">СТУДИЯ ЗДОРОВЬЯ И КРАСОТЫ ВОЛОС</span>
+              <h1>Stasy Bell</h1>
+              <p className="hero-tagline">Волосы, в которых <em>ты — это ты.</em></p>
               <p>Кератин, ботокс и забота о здоровье волос. Бережный подход и процедуры, которые хочется повторять.</p>
-              <div className="hero-actions"><a className="button primary" href="#booking">Выбрать время</a><a className="text-link" href="#services">Смотреть прайс</a></div>
+              <div className="hero-actions"><a className="button primary" href="#booking">Выбрать время <ArrowRight size={16} aria-hidden="true" /></a><a className="button hero-secondary" href="#services">Услуги и цены</a></div>
               <span className="hero-footnote">Санкт-Петербург · ул. Ольги Берггольц, 9, корп. 2</span>
             </div>
             <div className="hero-media">
               <img src={masterPhoto} alt="Мастер Stasy Bell" />
-              <div className="floating-note">Красота начинается с заботы.</div>
+              <div className="floating-note"><span>ВАШ МАСТЕР</span>Красота начинается с заботы.</div>
+            </div>
+          </div>
+          <div className="container studio-principles">
+            <span><Sparkles aria-hidden="true" />Гладкость и блеск</span>
+            <span><Leaf aria-hidden="true" />Бережный уход</span>
+            <span><Heart aria-hidden="true" />Индивидуальный подход</span>
+            <span><Scissors aria-hidden="true" />Здоровье волос</span>
+          </div>
+        </section>
+        <section className="service-preview section">
+          <div className="container">
+            <div className="preview-heading"><h2>Наши услуги</h2><a className="text-link" href="#services">Все услуги <ArrowRight size={16} aria-hidden="true" /></a></div>
+            <div className="preview-grid">
+              {priceGroups.slice(0, 3).map((group, index) => (
+                <a className="preview-card" href={`#price-group-${index}`} key={group.title}>
+                  <img src={[portfolioTwo, portfolioOne, portfolioThree][index]} alt="Пример ухода из портфолио Stasy Bell" />
+                  <div><h3>{group.title}</h3><p>{group.description}</p>
+                    <span className="preview-price">от {group.items.find((item) => !item.addOnOnly)?.price}<ArrowRight size={20} aria-hidden="true" /></span>
+                  </div>
+                </a>
+              ))}
             </div>
           </div>
         </section>
@@ -265,7 +289,7 @@ function App() {
             <div className="section-heading"><span className="eyebrow">ПРОЦЕДУРЫ</span><h2>Меню красоты</h2><p>Актуальные цены с действующего сайта. Точная стоимость зависит от варианта услуги и особенностей волос.</p></div>
             <div className="services-grid">
               {priceGroups.map((group, index) => (
-                <article className="service-card" key={group.title}>
+                <article className="service-card" id={`price-group-${index}`} key={group.title}>
                   <span className="card-index">0{index + 1}</span>
                   <h3>{group.title}</h3>
                   <p className="service-subtitle">{group.description}</p>
