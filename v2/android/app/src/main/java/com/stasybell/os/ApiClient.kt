@@ -240,7 +240,7 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                               priceKopecks: Int, duration: Int, buffer: Int) {
         val body = JSONObject()
             .put("code", "owner-" + java.util.UUID.randomUUID())
-            .put("name", name).put("variant", variant)
+            .put("name", name).put("variant", variant ?: JSONObject.NULL)
             .put("price_kopecks", priceKopecks)
             .put("duration_minutes", duration).put("buffer_minutes", buffer)
             .put("active", true)
@@ -251,7 +251,7 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                               name: String, variant: String?,
                               priceKopecks: Int, duration: Int, buffer: Int) {
         val body = JSONObject()
-            .put("name", name).put("variant", variant)
+            .put("name", name).put("variant", variant ?: JSONObject.NULL)
             .put("price_kopecks", priceKopecks)
             .put("duration_minutes", duration).put("buffer_minutes", buffer)
         call("PATCH", "owner/services/$serviceId", body, token)
