@@ -134,8 +134,8 @@ fun MasterApp() {
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
+                Text("Stasy Bell OS", style = MaterialTheme.typography.titleLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Stasy Bell OS", style = MaterialTheme.typography.titleLarge)
                     Button(onClick = { refresh(activeToken) }, enabled = !busy) {
                         Text("Обновить")
                     }
