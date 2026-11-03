@@ -44,9 +44,13 @@ def main():
         assert {"created_manual", "moved", "cancelled"} <= {e["action"] for e in events}
         assert by_client["Synthetic Completed"]["status"] == "completed"
         summary = get("/owner/finances/summary", year=today.year, month=today.month)
-        assert summary["income_kopecks"] == 150000
-        assert summary["expense_kopecks"] == 30025
-        assert summary["balance_kopecks"] == 119975
+        assert summary["income_kopecks"] == 240000
+        assert summary["expense_kopecks"] == 0
+        assert summary["balance_kopecks"] == 240000
+        assert summary["is_closed"] is True
+        closures = get("/owner/finances/closures", year=today.year, month=today.month)["versions"]
+        assert len(closures) == 2
+        assert closures[-1]["version"] == 2
         materials = get("/owner/materials")["materials"]
         assert len(materials) == 1
         assert materials[0]["name"] == "Synthetic material"

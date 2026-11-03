@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
@@ -27,6 +28,9 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
@@ -79,18 +83,30 @@ fun MasterApp() {
     var clients by remember { mutableStateOf<List<ClientItem>>(emptyList()) }
     var visits by remember { mutableStateOf<List<VisitItem>>(emptyList()) }
     var cash by remember { mutableStateOf<CashSummary?>(null) }
+    var dailyIncome by remember { mutableStateOf<Long?>(null) }
+    var workingWindows by remember { mutableStateOf<List<WorkingTime>?>(null) }
     val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
 
     fun refresh(currentToken: String) {
         scope.launch {
             busy = true
             cash = null
+            dailyIncome = null
+            workingWindows = null
             try {
                 services = api.services(currentToken)
                 clients = api.clients(currentToken)
                 visits = api.visits(currentToken, today)
                 error = ""
                 cash = try { api.financeSummary(currentToken, today.year, today.monthValue) }
+                    catch (_: Exception) { null }
+                dailyIncome = try {
+                    api.financeTransactions(currentToken, today.year, today.monthValue)
+                        .filter { it.kind == "income" && java.time.OffsetDateTime.parse(it.occurredAt)
+                            .atZoneSameInstant(ZoneId.of("Europe/Moscow")).toLocalDate() == today }
+                        .sumOf { if (it.correctionOfId != null) -it.amountKopecks else it.amountKopecks }
+                } catch (_: Exception) { null }
+                workingWindows = try { api.schedule(currentToken, today.toString()) }
                     catch (_: Exception) { null }
             } catch (ex: Exception) {
                 error = "Не удалось обновить данные: ${ex.message}"
@@ -155,7 +171,31 @@ fun MasterApp() {
         val icons = listOf(Icons.Default.Home, Icons.Default.DateRange, Icons.Default.Person,
             Icons.Default.AccountBox, Icons.Default.MoreVert)
         val morePages = listOf("+ Запись", "График", "Услуги", "Материалы", "Отчёты", "Настройки")
+        val forestPage = page in listOf("Сегодня", "Календарь", "Финансы")
         Scaffold(
+            topBar = {
+                if (forestPage) ForestSurface(Modifier.background(StasyColors.Forest).statusBarsPadding()) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (page == "Сегодня") "Stasy Bell OS" else page,
+                            style = MaterialTheme.typography.titleMedium, color = Color.White,
+                            modifier = Modifier.weight(1f))
+                        IconButton(onClick = { refresh(activeToken) }, enabled = !busy) {
+                            Icon(Icons.Default.Refresh, "Обновить", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = { token = null; cash = null; page = "Сегодня" }) {
+                            Icon(Icons.Default.ExitToApp, "Выход", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            },
+            floatingActionButton = {
+                if (page in listOf("Сегодня", "Календарь")) FloatingActionButton(
+                    onClick = { page = "+ Запись" }, containerColor = StasyColors.PrimaryDeep,
+                    contentColor = Color.White, shape = androidx.compose.foundation.shape.CircleShape,
+                    modifier = Modifier.size(52.dp),
+                ) { Icon(Icons.Default.Add, "+ Запись") }
+            },
             bottomBar = {
                 NavigationBar(containerColor = StasyColors.Surface, tonalElevation = 0.dp) {
                     tabs.forEachIndexed { index, tab ->
@@ -180,9 +220,12 @@ fun MasterApp() {
         ) { padding ->
             Column(
                 modifier = Modifier.fillMaxSize().padding(padding)
-                    .padding(horizontal = if (page == "Календарь") 4.dp else 16.dp, vertical = 16.dp)
-                    .verticalScroll(pageScrollState),
+                    .background(StasyColors.Canvas)
+                    .verticalScroll(pageScrollState)
+                    .padding(horizontal = if (page == "Сегодня") 0.dp else if (forestPage) 12.dp else 16.dp,
+                        vertical = if (page == "Сегодня") 0.dp else 12.dp),
             ) {
+                if (!forestPage) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Stasy Bell OS", style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f).padding(top = 12.dp))
@@ -196,48 +239,14 @@ fun MasterApp() {
                 if (busy) Text("Загрузка…")
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(12.dp))
+                }
+                if (forestPage && busy) Text("Загрузка…", modifier = Modifier.padding(horizontal = 16.dp))
+                if (forestPage && error.isNotBlank()) Text(error, color = StasyColors.Error,
+                    modifier = Modifier.padding(16.dp))
+                MaterialTheme(typography = if (forestPage) operationalTypography else MaterialTheme.typography) {
                 when (page) {
-                    "Сегодня" -> {
-                        val appointments = visits.filter {
-                            it.kind == "appointment" && countsAsVisit(it.status)
-                        }
-                        val todayVisits = appointments.filter { it.localTime.startsWith(today.format(
-                            java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
-                        )) }
-                        val upcoming = appointments.filter {
-                            it.status in listOf("confirmed", "pending_channel") &&
-                                java.time.OffsetDateTime.parse(it.startsAt).isAfter(java.time.OffsetDateTime.now())
-                        }.take(4)
-                        Surface(shape = MaterialTheme.shapes.large, color = StasyColors.PrimaryDeep) {
-                            Column(Modifier.fillMaxWidth().background(Brush.linearGradient(
-                                listOf(StasyColors.Forest, StasyColors.PrimaryDeep, StasyColors.Primary)
-                            )).padding(20.dp)) {
-                                Text("РАБОЧИЙ ДЕНЬ", style = MaterialTheme.typography.labelMedium, color = Color.White)
-                                Spacer(Modifier.height(8.dp))
-                                Text("Добро пожаловать", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-                                Text(today.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")), color = Color.White)
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            KpiValue("Записей сегодня", todayVisits.size.toString(), Modifier.weight(1f))
-                            KpiValue("Поступления (факт) · месяц", cash?.let { formatCash(it.incomeKopecks) } ?: "—", Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        StasyButton(onClick = { page = "+ Запись" }, modifier = Modifier.fillMaxWidth()) { Text("+ Запись") }
-                        Spacer(Modifier.height(16.dp))
-                        AppCard {
-                            Text("Ближайшие визиты", style = MaterialTheme.typography.titleLarge)
-                            Spacer(Modifier.height(8.dp))
-                            if (upcoming.isEmpty()) Text("На ближайшие дни записей нет.", color = StasyColors.Body)
-                            upcoming.forEach { visit ->
-                                val client = clients.find { it.id == visit.clientId }?.name ?: "Без клиента"
-                                val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
-                                Text("${visit.localTime} · $client · $service")
-                            }
-                            Text("Всего записей на 8 дней: ${appointments.size}", style = MaterialTheme.typography.bodySmall)
-                            Text("Ожидающие, подтверждённые и выполненные.", style = MaterialTheme.typography.bodySmall)
-                        }
+                    "Сегодня" -> TodayOverview(today, visits, clients, services, dailyIncome, workingWindows) {
+                        page = "Календарь"
                     }
                     "Календарь" -> {
                         CalendarPanel(api, activeToken, visits, clients, services) {
@@ -302,6 +311,7 @@ fun MasterApp() {
                             },
                         )
                     }
+                }
                 }
             }
         }

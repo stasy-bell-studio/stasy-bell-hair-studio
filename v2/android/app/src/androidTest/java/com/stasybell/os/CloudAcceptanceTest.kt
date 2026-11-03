@@ -42,13 +42,15 @@ class CloudAcceptanceTest {
 
     private fun waitFor(text: String, substring: Boolean = false) {
         compose.waitUntil(timeoutMillis = 20_000) {
-            compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithContentDescription(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
     private fun click(text: String) {
         waitFor(text)
-        val node = compose.onNodeWithText(text)
+        val node = if (compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty())
+            compose.onNodeWithText(text) else compose.onNodeWithContentDescription(text)
         if (!node.isDisplayed()) node.performScrollTo()
         compose.waitUntil(timeoutMillis = 20_000) {
             runCatching { node.assertIsEnabled() }.isSuccess
@@ -104,7 +106,16 @@ class CloudAcceptanceTest {
         enter("Время: ЧЧ:ММ", time)
         screenshot("manual-booking")
         click("Создать подтверждённую запись")
+        openDay(day)
         waitFor(client, substring = true)
+        click(client)
+    }
+
+    private fun openDay(day: String) {
+        clickAccessible("Перейти к дате")
+        enter("Дата, ДД.ММ.ГГГГ", day)
+        click("Открыть день")
+        waitFor(day)
     }
 
     @Test fun ownerJourney() {
@@ -168,7 +179,7 @@ class CloudAcceptanceTest {
         screenshot("05-calendar-month")
         clickAccessible("Выбрать $todayDisplay, записей: 0")
         waitFor(todayDisplay)
-        click("Перейти к дате")
+        clickAccessible("Перейти к дате")
         enter("Дата, ДД.ММ.ГГГГ", display)
         click("Открыть день")
         waitFor(display)
@@ -177,10 +188,11 @@ class CloudAcceptanceTest {
         waitFor("$display 10:00 · Synthetic Move", substring = true)
         waitFor("Ожидаемая стоимость записи: 1200,50 ₽")
         screenshot("06-calendar")
-        click("Перейти к дате")
+        clickAccessible("Перейти к дате")
         enter("Дата, ДД.ММ.ГГГГ", display)
         click("Открыть день")
         waitFor("$display 10:00 · Synthetic Move", substring = true)
+        click("Рабочие окна и интервалы")
         waitFor("Рабочие окна: 09:00–19:00")
         waitFor("09:00–10:00 · Без записи")
         waitFor("10:00–11:15 · Synthetic Move · Подтверждена")
@@ -192,7 +204,9 @@ class CloudAcceptanceTest {
         waitFor("Synthetic Move", substring = true)
         screenshot("06-today-upcoming")
         click("Календарь")
+        openDay(display)
         waitFor("$display 10:00 · Synthetic Move", substring = true)
+        click("Synthetic Move")
         click("Перенести")
         enter("Новая дата, ДД.ММ.ГГГГ", display)
         enter("Новое время, ЧЧ:ММ", "12:00")
@@ -235,6 +249,7 @@ class CloudAcceptanceTest {
         }
         click("Предыдущий месяц")
         waitFor("Поступления: 0,00 ₽")
+        click("Новая операция")
         enter("Сумма, ₽", "900")
         click("Записать фактическую операцию")
         waitFor("Поступления: 900,00 ₽")
@@ -252,7 +267,7 @@ class CloudAcceptanceTest {
         click("Записать фактическую операцию")
         waitFor("Расходы: 300,25 ₽")
         waitFor("Денежная разница: 2099,75 ₽")
-        compose.onNodeWithText("Финансы ·", substring = true).performScrollTo()
+        compose.onNodeWithContentDescription("Поступления: 2400,00 ₽").performScrollTo()
         screenshot("10-finance")
         waitFor("Расход · Материалы")
         val history = compose.onNodeWithText("Расход · Материалы")

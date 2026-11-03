@@ -4,6 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -57,7 +63,9 @@ fun CalendarPanel(
     var moveTime by remember { mutableStateOf("10:00") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
-    var rangeMode by remember { mutableStateOf("Ближайшие") }
+    var rangeMode by remember { mutableStateOf("Месяц") }
+    var expandedVisit by remember { mutableStateOf<String?>(null) }
+    var showTimeline by remember { mutableStateOf(false) }
     var anchor by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow"))) }
     var rangeVisits by remember { mutableStateOf(visits) }
     var rangeLoading by remember { mutableStateOf(false) }
@@ -111,7 +119,7 @@ fun CalendarPanel(
 
     val compactFont = LocalDensity.current.fontScale >= 1.3f
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Календарь", style = MaterialTheme.typography.titleLarge)
+        EditorialCard {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("День", "Неделя", "Месяц").forEach { mode ->
                 FilterChip(selected = rangeMode == mode, onClick = { rangeMode = mode },
@@ -127,34 +135,31 @@ fun CalendarPanel(
                         "Неделя" -> anchor.minusWeeks(1)
                         else -> anchor.minusMonths(1)
                     }
-                }) { Text("Назад") }
-                TextButton(onClick = { anchor = LocalDate.now(ZoneId.of("Europe/Moscow")) }) { Text("Сегодня") }
+                }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Назад") }
+                TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
+                    Text(anchor.format(DateTimeFormatter.ofPattern("LLLL yyyy", studioLocale)),
+                        style = MaterialTheme.typography.titleMedium)
+                }
                 TextButton(onClick = {
                     anchor = when (rangeMode) {
                         "День" -> anchor.plusDays(1)
                         "Неделя" -> anchor.plusWeeks(1)
                         else -> anchor.plusMonths(1)
                     }
-                }) { Text("Вперёд") }
-            }
-        }
-        val display = DateTimeFormatter.ofPattern("dd.MM.yyyy")
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (from == to) from.format(display) else "${from.format(display)} — ${to.format(display)}",
-                style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
-                Text("Перейти к дате")
+                }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Вперёд") }
             }
         }
         if (!rangeLoading && rangeError.isBlank()) {
             val count = rangeVisits.count { it.kind == "appointment" && countsAsVisit(it.status) }
             Text("Записей за период: $count", style = MaterialTheme.typography.bodySmall)
-            Text("Ожидающие, подтверждённые и выполненные.", style = MaterialTheme.typography.bodySmall)
         }
         if (rangeLoading) Text("Загрузка календаря…")
         if (rangeError.isNotBlank()) Text(rangeError, color = MaterialTheme.colorScheme.error)
         if (windowsError.isNotBlank()) Text(windowsError, color = MaterialTheme.colorScheme.error)
-        windows?.let { actualWindows ->
+        if (rangeMode == "День") TextButton(onClick = { showTimeline = !showTimeline }) {
+            Text(if (showTimeline) "Скрыть рабочие окна" else "Рабочие окна и интервалы")
+        }
+        if (showTimeline) windows?.let { actualWindows ->
             Text(if (actualWindows.isEmpty()) "Открытых рабочих окон нет." else
                 "Рабочие окна: " + actualWindows.joinToString(", ") { "${it.start.take(5)}–${it.end.take(5)}" },
                 style = MaterialTheme.typography.bodySmall)
@@ -181,7 +186,6 @@ fun CalendarPanel(
                 .mapNotNull { parseStudioDate(it.localTime.substringBefore(" ")) }
                 .groupingBy { it }
                 .eachCount()
-            Text("Нажмите дату, чтобы открыть расписание.", style = MaterialTheme.typography.bodySmall)
             if (rangeVisits.isEmpty()) Text("В выбранном периоде записей нет.", style = MaterialTheme.typography.bodySmall)
             CalendarDateGrid(
                 dates = dates,
@@ -191,16 +195,31 @@ fun CalendarPanel(
                 showWeekdaysInCells = rangeMode == "Неделя",
                 onSelect = { date ->
                     anchor = date
-                    rangeMode = "День"
+                    if (date.month != from.month) rangeMode = "День"
                 },
             )
         }
-        val detailedVisits = if (rangeMode in listOf("Неделя", "Месяц")) emptyList() else rangeVisits
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Записи на ${anchor.format(DateTimeFormatter.ofPattern("d MMMM", studioLocale))}",
+                style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)
+                    .semantics { contentDescription = anchor.format(studioDateFormat) })
+            TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
+                Text("К дате", modifier = Modifier.semantics { contentDescription = "Перейти к дате" })
+            }
+        }
+        val detailedVisits = rangeVisits.filter { it.localTime.startsWith(anchor.format(studioDateFormat)) }
+        if (!rangeLoading && rangeError.isBlank() && detailedVisits.isEmpty()) {
+            Text("На этот день записей нет.", color = StasyColors.Muted)
+        }
         detailedVisits.forEach { visit ->
             val client = clients.find { it.id == visit.clientId }?.name ?: "Без клиента"
             val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
-            AppCard {
-                Text("${visit.localTime} · $client · $service", style = MaterialTheme.typography.titleMedium)
+            EditorialCard {
+                VisitSummaryRow(visit, client, service) {
+                    expandedVisit = if (expandedVisit == visit.id) null else visit.id
+                }
+                if (expandedVisit == visit.id) {
                 val status = visitStatusLabel(visit.status)
                 val source = when (visit.source) {
                     "phone" -> "вручную"
@@ -227,6 +246,7 @@ fun CalendarPanel(
                         listOf("confirmed", "completed", "no_show", "cancelled")) {
                     TextButton(onClick = { request(visit, "delete") },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Удалить с историей") }
+                }
                 }
             }
         }

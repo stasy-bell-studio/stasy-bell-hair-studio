@@ -20,6 +20,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -37,6 +41,7 @@ object StasyColors {
     val Muted = Color(0xFF66756B)
     val Border = Color(0xFFDEE7DE)
     val Error = Color(0xFFB3261E)
+    val Warning = Color(0xFF996017)
 }
 
 object StasySpacing {
@@ -68,6 +73,25 @@ private val typography = Typography().let { base ->
         labelLarge = base.labelLarge.copy(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold),
     )
 }
+
+@OptIn(ExperimentalTextApi::class)
+private val inter = FontFamily(
+    Font(R.font.inter, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+    Font(R.font.inter, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.inter, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+    Font(R.font.inter, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+)
+
+val operationalTypography = typography.copy(
+    headlineSmall = typography.headlineSmall.copy(fontFamily = inter),
+    titleLarge = typography.titleLarge.copy(fontFamily = inter),
+    titleMedium = typography.titleMedium.copy(fontFamily = inter),
+    bodyLarge = typography.bodyLarge.copy(fontFamily = inter),
+    bodyMedium = typography.bodyMedium.copy(fontFamily = inter),
+    bodySmall = typography.bodySmall.copy(fontFamily = inter),
+    labelLarge = typography.labelLarge.copy(fontFamily = inter),
+    labelSmall = typography.labelSmall.copy(fontFamily = inter),
+)
 
 private val shapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),

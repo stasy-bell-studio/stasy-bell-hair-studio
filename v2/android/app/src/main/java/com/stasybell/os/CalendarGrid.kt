@@ -1,6 +1,11 @@
 package com.stasybell.os
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -71,7 +76,7 @@ fun CalendarDateGrid(
                 val isSelected = date == anchor
                 Card(
                     onClick = { onSelect(date) },
-                    modifier = Modifier.weight(1f).heightIn(min = if (showWeekdaysInCells) 72.dp else 56.dp)
+                    modifier = Modifier.weight(1f).heightIn(min = if (showWeekdaysInCells) 72.dp else 48.dp)
                         .semantics(mergeDescendants = true) {
                             contentDescription = if (showWeekdaysInCells || isInMonth) {
                                 "Выбрать ${date.format(dateFormat)}, записей: $count"
@@ -81,9 +86,8 @@ fun CalendarDateGrid(
                             this.selected = isSelected
                         },
                     shape = MaterialTheme.shapes.small,
-                    border = BorderStroke(1.dp, if (isSelected) StasyColors.Primary else StasyColors.Border),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) StasyColors.MintSoft else StasyColors.Surface,
+                        containerColor = StasyColors.Surface,
                     ),
                 ) {
                     Column(
@@ -96,11 +100,16 @@ fun CalendarDateGrid(
                                 style = MaterialTheme.typography.bodySmall, color = StasyColors.Muted,
                                 textAlign = TextAlign.Center)
                         }
+                        Box(Modifier.size(28.dp).background(
+                            if (isSelected) StasyColors.Primary else Color.Transparent, CircleShape),
+                            contentAlignment = Alignment.Center) {
                         Text(date.dayOfMonth.toString(),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (showWeekdaysInCells || isInMonth) StasyColors.Ink else StasyColors.Muted,
+                            color = if (isSelected) Color.White else if (showWeekdaysInCells || isInMonth)
+                                StasyColors.Ink else StasyColors.Muted.copy(alpha = .65f),
                             textAlign = TextAlign.Center)
+                        }
                         if (showWeekdaysInCells || count > 0) {
                             Text(count.toString(),
                                 style = MaterialTheme.typography.labelSmall,
