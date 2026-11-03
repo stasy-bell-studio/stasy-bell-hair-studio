@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +43,9 @@ fun MaterialsPanel(api: ApiClient, token: String) {
     var changing by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var historyId by remember { mutableStateOf<String?>(null) }
+    var movements by remember { mutableStateOf<List<MaterialMovement>>(emptyList()) }
+    var historyBusy by remember { mutableStateOf(false) }
 
     fun reload() {
         scope.launch {
@@ -61,6 +65,30 @@ fun MaterialsPanel(api: ApiClient, token: String) {
                 StasyButton(onClick = { changing = if (changing == material.id) null else material.id }) {
                     Text("Изменить остаток · ${material.name}")
                 }
+                TextButton(onClick = {
+                    if (historyId == material.id) {
+                        historyId = null; movements = emptyList(); historyBusy = false
+                    } else {
+                        historyId = material.id; movements = emptyList(); historyBusy = true
+                        scope.launch {
+                            try {
+                                val result = api.materialHistory(token, material.id)
+                                if (historyId == material.id) { movements = result; error = "" }
+                            } catch (ex: Exception) {
+                                if (historyId == material.id) error = "Не удалось загрузить движения: ${ex.message}"
+                            } finally { if (historyId == material.id) historyBusy = false }
+                        }
+                    }
+                }) { Text("История · ${material.name}") }
+                if (historyId == material.id) {
+                    if (historyBusy) Text("Загрузка движений…")
+                    if (!historyBusy && movements.isEmpty() && error.isBlank()) Text("Движений пока нет.")
+                    movements.asReversed().forEach { movement ->
+                        val amount = BigDecimal.valueOf(movement.changeMilliunits, 3).stripTrailingZeros().toPlainString()
+                        Text("${if (movement.changeMilliunits > 0) "+" else ""}$amount ${materialUnitLabel(material.unit)} · ${movement.reason}")
+                        Text(localVisitTime(movement.createdAt), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
                 if (changing == material.id) {
                     OutlinedTextField(value = quantity, onValueChange = { quantity = it },
                         label = { Text("Количество ${materialUnitLabel(material.unit)} (например 25,5)") })
@@ -73,6 +101,7 @@ fun MaterialsPanel(api: ApiClient, token: String) {
                                 busy = true
                                 try {
                                     api.adjustStock(token, material.id, delta, reason.trim())
+                                    historyId = null; movements = emptyList()
                                     changing = null; quantity = ""; reason = ""
                                     reload()
                                 } catch (ex: Exception) { error = "Ошибка: ${ex.message}" }
@@ -85,6 +114,7 @@ fun MaterialsPanel(api: ApiClient, token: String) {
                                 busy = true
                                 try {
                                     api.adjustStock(token, material.id, -delta, reason.trim())
+                                    historyId = null; movements = emptyList()
                                     changing = null; quantity = ""; reason = ""
                                     reload()
                                 } catch (ex: Exception) { error = "Ошибка: ${ex.message}" }

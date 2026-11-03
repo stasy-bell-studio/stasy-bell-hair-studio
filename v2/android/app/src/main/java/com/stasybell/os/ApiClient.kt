@@ -37,6 +37,7 @@ data class VisitItem(
 )
 data class WorkingTime(val start: String, val end: String)
 data class MaterialItem(val id: String, val name: String, val unit: String, val milliunits: Long)
+data class MaterialMovement(val changeMilliunits: Long, val reason: String, val createdAt: String)
 
 val studioDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.uuuu")
     .withResolverStyle(ResolverStyle.STRICT)
@@ -231,6 +232,14 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
 
     suspend fun newMaterial(token: String, name: String, unit: String) {
         call("POST", "owner/materials", JSONObject().put("name", name).put("unit", unit), token)
+    }
+
+    suspend fun materialHistory(token: String, id: String): List<MaterialMovement> {
+        val rows = call("GET", "owner/materials/$id/movements", token = token).getJSONArray("movements")
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            MaterialMovement(row.getLong("change_milliunits"), row.getString("reason"), row.getString("created_at"))
+        }
     }
 
     suspend fun adjustStock(token: String, id: String, changeMilliunits: Long, reason: String) {
