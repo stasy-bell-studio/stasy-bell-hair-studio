@@ -47,6 +47,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -145,6 +148,10 @@ fun MasterApp() {
     } else {
         val activeToken = token ?: return
         val tabs = listOf("Сегодня", "Календарь", "Клиенты", "Финансы", "Ещё")
+        val compactLabels = listOf("День", "Кал.", "Кл.", "Фин.", "Ещё")
+        val useCompactLabels = LocalDensity.current.fontScale >= 1.3f
+        val pageScrollState = rememberScrollState()
+        LaunchedEffect(page) { pageScrollState.scrollTo(0) }
         val icons = listOf(Icons.Default.Home, Icons.Default.DateRange, Icons.Default.Person,
             Icons.Default.AccountBox, Icons.Default.MoreVert)
         val morePages = listOf("+ Запись", "График", "Услуги", "Материалы", "Отчёты", "Настройки")
@@ -155,8 +162,9 @@ fun MasterApp() {
                         NavigationBarItem(
                             selected = page == tab || (tab == "Ещё" && page in morePages),
                             onClick = { page = tab },
+                            modifier = Modifier.semantics { contentDescription = tab },
                             icon = { Icon(icons[index], contentDescription = null, modifier = Modifier.size(20.dp)) },
-                            label = { Text(tab, fontSize = 10.sp) },
+                            label = { Text(if (useCompactLabels) compactLabels[index] else tab, fontSize = 10.sp) },
                             alwaysShowLabel = true,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = StasyColors.Primary,
@@ -173,7 +181,7 @@ fun MasterApp() {
             Column(
                 modifier = Modifier.fillMaxSize().padding(padding)
                     .padding(horizontal = if (page == "Календарь") 4.dp else 16.dp, vertical = 16.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(pageScrollState),
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Stasy Bell OS", style = MaterialTheme.typography.titleMedium,
