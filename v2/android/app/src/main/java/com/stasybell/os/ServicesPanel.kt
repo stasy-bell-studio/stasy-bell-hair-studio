@@ -41,15 +41,17 @@ fun ServicesPanel(
         Text("Услуги и длительность", style = MaterialTheme.typography.titleLarge)
         Text("Цены и время задаются мастером; ничего автоматически не добавляется.")
         services.forEach { item ->
-            Text("${item.name} ${item.variant ?: ""}: " +
-                "${item.priceKopecks?.let { formatCash(it.toLong()) } ?: "—"} · ${item.minutes ?: "—"} мин")
-            Button(onClick = {
-                editingId = item.id
-                name = item.name; variant = item.variant.orEmpty()
-                price = item.priceKopecks?.let { BigDecimal.valueOf(it.toLong(), 2).toPlainString() }.orEmpty()
-                duration = item.minutes?.toString().orEmpty()
-                buffer = item.bufferMinutes.toString()
-            }) { Text("Изменить · ${item.name}") }
+            AppCard {
+                Text("${item.name} ${item.variant ?: ""}: " +
+                    "${item.priceKopecks?.let { formatCash(it.toLong()) } ?: "—"} · ${item.minutes ?: "—"} мин")
+                Button(onClick = {
+                    editingId = item.id
+                    name = item.name; variant = item.variant.orEmpty()
+                    price = item.priceKopecks?.let { BigDecimal.valueOf(it.toLong(), 2).toPlainString() }.orEmpty()
+                    duration = item.minutes?.toString().orEmpty()
+                    buffer = item.bufferMinutes.toString()
+                }) { Text("Изменить · ${item.name}") }
+            }
         }
         Text(if (editingId == null) "Новая услуга" else "Редактирование услуги",
             style = MaterialTheme.typography.titleMedium)

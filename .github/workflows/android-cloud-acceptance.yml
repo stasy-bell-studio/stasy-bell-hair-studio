@@ -9,7 +9,7 @@ on:
       - 'v2/api/**'
       - '.github/workflows/android-cloud-acceptance.yml'
   push:
-    branches: [codex/android-cloud-acceptance]
+    branches: [codex/android-cloud-acceptance, develop/stasy-bell-os-v2]
 
 permissions:
   contents: read
