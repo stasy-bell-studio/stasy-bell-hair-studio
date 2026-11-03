@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -220,16 +221,20 @@ class CloudAcceptanceTest {
         click("Финансы")
         waitFor("Поступления: 0,00 ₽")
         screenshot("10-finance-overview")
-        enter("Сумма, ₽", "1500")
+        enter("Сумма, ₽", "900")
         click("Записать фактическую операцию")
-        waitFor("Поступления: 1500,00 ₽")
+        waitFor("Поступления: 900,00 ₽")
+        enter("Сумма, ₽", "1500")
+        compose.onNodeWithText("Записать фактическую операцию")
+            .performTouchInput { doubleClick() }
+        waitFor("Поступления: 2400,00 ₽")
         click("Доход — переключить на расход")
         click("Прочее")
         click("Материалы")
         enter("Сумма, ₽", "300,25")
         click("Записать фактическую операцию")
         waitFor("Расходы: 300,25 ₽")
-        waitFor("Денежная разница: 1199,75 ₽")
+        waitFor("Денежная разница: 2099,75 ₽")
         compose.onNodeWithText("Финансы ·", substring = true).performScrollTo()
         screenshot("10-finance")
         waitFor("Расход · Материалы")
@@ -239,13 +244,16 @@ class CloudAcceptanceTest {
         val incomeHistory = compose.onNodeWithText("Поступление · Прочее")
         incomeHistory.performScrollTo()
         incomeHistory.assertIsDisplayed()
+        check(compose.onAllNodesWithText("Поступление · Прочее").fetchSemanticsNodes().size == 2) {
+            "A double tap should create one operation, and two actual entries should remain visible."
+        }
         screenshot("10-finance-history")
         click("Предыдущий месяц")
         waitFor("Добавление операций доступно только в текущем месяце.")
         click("Следующий месяц")
-        waitFor("Поступления: 1500,00 ₽")
+        waitFor("Поступления: 2400,00 ₽")
         click("Сегодня")
-        waitFor("1500,00 ₽")
+        waitFor("2400,00 ₽")
         screenshot("10-today-after-cash")
 
         click("Ещё")
