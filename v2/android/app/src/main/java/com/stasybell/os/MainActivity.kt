@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -86,6 +88,12 @@ fun MasterApp() {
     var dailyIncome by remember { mutableStateOf<Long?>(null) }
     var workingWindows by remember { mutableStateOf<List<WorkingTime>?>(null) }
     val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
+    val view = LocalView.current
+    SideEffect {
+        val activity = view.context as? android.app.Activity
+        if (activity != null) WindowCompat.getInsetsController(activity.window, view)
+            .isAppearanceLightStatusBars = token == null || page !in listOf("Сегодня", "Календарь", "Финансы")
+    }
 
     fun refresh(currentToken: String) {
         scope.launch {
@@ -222,8 +230,8 @@ fun MasterApp() {
                 modifier = Modifier.fillMaxSize().padding(padding)
                     .background(StasyColors.Canvas)
                     .verticalScroll(pageScrollState)
-                    .padding(horizontal = if (page == "Сегодня") 0.dp else if (forestPage) 12.dp else 16.dp,
-                        vertical = if (page == "Сегодня") 0.dp else 12.dp),
+                    .padding(horizontal = if (page in listOf("Сегодня", "Финансы")) 0.dp else if (forestPage) 12.dp else 16.dp,
+                        vertical = if (page in listOf("Сегодня", "Финансы")) 0.dp else 12.dp),
             ) {
                 if (!forestPage) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

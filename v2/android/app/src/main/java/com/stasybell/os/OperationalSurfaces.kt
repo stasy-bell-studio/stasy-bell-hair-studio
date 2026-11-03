@@ -156,14 +156,12 @@ fun TodayOverview(today: LocalDate, visits: List<VisitItem>, clients: List<Clien
 
 @Composable
 fun CashOverview(summary: CashSummary, transactions: List<CashEntry>, period: YearMonth) {
+    ForestSurface {
+    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        EditorialCard(Modifier.weight(1f).semantics(mergeDescendants = true) {
+        GlassMetric("Поступления", formatCash(summary.incomeKopecks), Modifier.weight(1f).semantics(mergeDescendants = true) {
             contentDescription = "Поступления: ${formatCash(summary.incomeKopecks)}"
-        }) {
-            Text("Поступления", style = MaterialTheme.typography.bodySmall, color = StasyColors.Muted)
-            Text(formatCash(summary.incomeKopecks), fontSize = 23.sp, lineHeight = 29.sp,
-                fontWeight = FontWeight.SemiBold, color = StasyColors.Primary)
-        }
+        })
         EditorialCard(Modifier.weight(1f).semantics(mergeDescendants = true) {
             contentDescription = "Расходы: ${formatCash(summary.expenseKopecks)}"
         }) {
@@ -172,15 +170,17 @@ fun CashOverview(summary: CashSummary, transactions: List<CashEntry>, period: Ye
                 fontWeight = FontWeight.SemiBold)
         }
     }
-    EditorialCard(Modifier.semantics(mergeDescendants = true) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 12.dp).semantics(mergeDescendants = true) {
         contentDescription = "Денежная разница: ${formatCash(summary.balanceKopecks)}"
     }) {
-        Text("Денежная разница", style = MaterialTheme.typography.bodySmall, color = StasyColors.Muted)
+        Text("Денежная разница", style = MaterialTheme.typography.bodySmall, color = StasyColors.Mint)
         Text(formatCash(summary.balanceKopecks), style = MaterialTheme.typography.headlineSmall,
-            color = StasyColors.PrimaryDeep)
-        Text("Фактические деньги · не бухгалтерская прибыль", fontSize = 11.sp, color = StasyColors.Muted)
+            color = Color.White)
+        Text("Фактические деньги · не бухгалтерская прибыль", fontSize = 11.sp, color = StasyColors.Mint)
     }
-    EditorialCard {
+    }
+    }
+    EditorialCard(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
         Text("Поступления по неделям", style = MaterialTheme.typography.titleMedium)
         val weeks = (0 until (period.lengthOfMonth() + 6) / 7).map { week ->
             transactions.filter { it.kind == "income" &&

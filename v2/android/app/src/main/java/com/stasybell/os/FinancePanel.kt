@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -125,42 +126,29 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
 
     LaunchedEffect(token, period) { refresh() }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column {
+        ForestSurface {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = {
                 period = period.minusMonths(1); totals = null; transactions = emptyList(); closures = emptyList(); warning = ""
             }, enabled = !loading && period > YearMonth.of(2000, 1),
-                ) { Text("‹", modifier = Modifier.semantics { contentDescription = "Предыдущий месяц" }) }
+                ) { Text("‹", color = Color.White, modifier = Modifier.semantics { contentDescription = "Предыдущий месяц" }) }
             Text(period.atDay(1).format(java.time.format.DateTimeFormatter.ofPattern("LLLL yyyy", studioLocale)),
-                style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp))
+                style = MaterialTheme.typography.titleMedium, color = Color.White,
+                modifier = Modifier.padding(top = 12.dp))
             TextButton(onClick = {
                 period = period.plusMonths(1); totals = null; transactions = emptyList(); closures = emptyList(); warning = ""
             }, enabled = !loading && period < YearMonth.of(2100, 12),
-                ) { Text("›", modifier = Modifier.semantics { contentDescription = "Следующий месяц" }) }
+                ) { Text("›", color = Color.White, modifier = Modifier.semantics { contentDescription = "Следующий месяц" }) }
+        }
         }
         totals?.let { CashOverview(it, transactions, period) }
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         StasyButton(onClick = { showEntryForm = !showEntryForm }, modifier = Modifier.fillMaxWidth()) {
             Text(if (showEntryForm) "Скрыть форму" else "Новая операция")
         }
         Text("Фактические суммы вносятся вручную.", style = MaterialTheme.typography.bodySmall,
             color = StasyColors.Muted)
-        totals?.let {
-            if (it.isClosed) {
-                Text("Месяц закрыт: добавление операций заблокировано.")
-                TextButton(
-                    onClick = { reopenReason = ""; reopenDialog = true },
-                    enabled = !loading && !requiresRefresh,
-                ) { Text("Открыть месяц повторно") }
-            } else if (period > currentPeriod) {
-                Text("Будущий месяц нельзя закрыть заранее.")
-            } else {
-                TextButton(
-                    onClick = { closeDialog = true },
-                    enabled = !loading && !requiresRefresh,
-                ) { Text("Закрыть месяц") }
-            }
-        }
-        TextButton(onClick = { refresh() }, enabled = !loading) { Text("Обновить суммы") }
         if (period != currentPeriod) Text("Добавление операций доступно только в текущем месяце.")
         if (showEntryForm) EditorialCard {
         Text("Ручной ввод", style = MaterialTheme.typography.titleMedium)
@@ -248,6 +236,25 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                 }
             }
         }
+        EditorialCard {
+            Text("Управление месяцем", style = MaterialTheme.typography.titleMedium)
+            totals?.let {
+                if (it.isClosed) {
+                    Text("Месяц закрыт: добавление операций заблокировано.")
+                    TextButton(
+                        onClick = { reopenReason = ""; reopenDialog = true },
+                        enabled = !loading && !requiresRefresh,
+                    ) { Text("Открыть месяц повторно") }
+                } else if (period > currentPeriod) {
+                    Text("Будущий месяц нельзя закрыть заранее.")
+                } else {
+                    TextButton(onClick = { closeDialog = true }, enabled = !loading && !requiresRefresh) {
+                        Text("Закрыть месяц")
+                    }
+                }
+            }
+            TextButton(onClick = { refresh() }, enabled = !loading) { Text("Обновить суммы") }
+        }
         Text("История закрытия месяца", style = MaterialTheme.typography.titleMedium)
         if (closures.isEmpty()) Text("Месяц ещё не закрывался.")
         closures.asReversed().forEach { closure ->
@@ -262,6 +269,8 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                 } else Text("Статус: закрыт")
             }
         }
+    }
+
     }
 
     if (closeDialog) AlertDialog(
