@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
@@ -105,7 +106,7 @@ fun CalendarPanel(
         pendingAction = action
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Календарь", style = MaterialTheme.typography.titleLarge)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("День", "Неделя", "Месяц").forEach { mode ->
@@ -133,10 +134,12 @@ fun CalendarPanel(
             }
         }
         val display = DateTimeFormatter.ofPattern("dd.MM.yyyy")
-        Text(if (from == to) from.format(display) else "${from.format(display)} — ${to.format(display)}",
-            style = MaterialTheme.typography.titleMedium)
-        TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
-            Text("Перейти к дате")
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (from == to) from.format(display) else "${from.format(display)} — ${to.format(display)}",
+                style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
+                Text("Перейти к дате")
+            }
         }
         if (!rangeLoading && rangeError.isBlank()) {
             val count = rangeVisits.count { it.kind == "appointment" && countsAsVisit(it.status) }
@@ -164,7 +167,8 @@ fun CalendarPanel(
                 }
             }
         }
-        if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty()) Text("На выбранные даты записей нет.")
+        if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty() &&
+            rangeMode !in listOf("Неделя", "Месяц")) Text("На выбранные даты записей нет.")
         if (!rangeLoading && rangeError.isBlank() && rangeMode in listOf("Неделя", "Месяц")) {
             val dates = (0..java.time.temporal.ChronoUnit.DAYS.between(from, to).toInt())
                 .map { from.plusDays(it.toLong()) }
