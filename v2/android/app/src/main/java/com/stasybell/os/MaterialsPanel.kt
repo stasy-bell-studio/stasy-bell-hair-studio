@@ -25,6 +25,13 @@ fun parseMilliunits(raw: String): Long? = try {
         null else whole.longValueExact()
 } catch (_: Exception) { null }
 
+fun materialUnitLabel(unit: String): String = when (unit) {
+    "g" -> "г"
+    "ml" -> "мл"
+    "pcs" -> "шт"
+    else -> unit
+}
+
 @Composable
 fun MaterialsPanel(api: ApiClient, token: String) {
     val scope = rememberCoroutineScope()
@@ -50,47 +57,49 @@ fun MaterialsPanel(api: ApiClient, token: String) {
         Text("Материалы", style = MaterialTheme.typography.titleLarge)
         Text("Остатки фиксируются отдельно от расходов. Закупку внесите также во вкладке «Финансы».")
         materials.forEach { material ->
-            Text("${material.name}: ${material.milliunits / 1000.0} ${material.unit}")
-            Button(onClick = { changing = if (changing == material.id) null else material.id }) {
-                Text("Изменить остаток · ${material.name}")
-            }
-            if (changing == material.id) {
-                OutlinedTextField(value = quantity, onValueChange = { quantity = it },
-                    label = { Text("Количество ${material.unit} (например 25,5)") })
-                OutlinedTextField(value = reason, onValueChange = { reason = it },
-                    label = { Text("Причина: закупка / процедура") })
-                val delta = parseMilliunits(quantity)
-                Button(enabled = !busy && delta != null && reason.trim().length >= 3,
-                    onClick = {
-                        if (delta != null) scope.launch {
-                            busy = true
-                            try {
-                                api.adjustStock(token, material.id, delta, reason.trim())
-                                changing = null; quantity = ""; reason = ""
-                                reload()
-                            } catch (ex: Exception) { error = "Ошибка: ${ex.message}" }
-                            finally { busy = false }
-                        }
-                    }) { Text("Добавить на склад") }
-                Button(enabled = !busy && delta != null && reason.trim().length >= 3,
-                    onClick = {
-                        if (delta != null) scope.launch {
-                            busy = true
-                            try {
-                                api.adjustStock(token, material.id, -delta, reason.trim())
-                                changing = null; quantity = ""; reason = ""
-                                reload()
-                            } catch (ex: Exception) { error = "Ошибка: ${ex.message}" }
-                            finally { busy = false }
-                        }
-                    }) { Text("Списать со склада") }
+            AppCard {
+                Text("${material.name}: ${material.milliunits / 1000.0} ${materialUnitLabel(material.unit)}")
+                Button(onClick = { changing = if (changing == material.id) null else material.id }) {
+                    Text("Изменить остаток · ${material.name}")
+                }
+                if (changing == material.id) {
+                    OutlinedTextField(value = quantity, onValueChange = { quantity = it },
+                        label = { Text("Количество ${materialUnitLabel(material.unit)} (например 25,5)") })
+                    OutlinedTextField(value = reason, onValueChange = { reason = it },
+                        label = { Text("Причина: закупка / процедура") })
+                    val delta = parseMilliunits(quantity)
+                    Button(enabled = !busy && delta != null && reason.trim().length >= 3,
+                        onClick = {
+                            if (delta != null) scope.launch {
+                                busy = true
+                                try {
+                                    api.adjustStock(token, material.id, delta, reason.trim())
+                                    changing = null; quantity = ""; reason = ""
+                                    reload()
+                                } catch (ex: Exception) { error = "Ошибка: ${ex.message}" }
+                                finally { busy = false }
+                            }
+                        }) { Text("Добавить на склад") }
+                    Button(enabled = !busy && delta != null && reason.trim().length >= 3,
+                        onClick = {
+                            if (delta != null) scope.launch {
+                                busy = true
+                                try {
+                                    api.adjustStock(token, material.id, -delta, reason.trim())
+                                    changing = null; quantity = ""; reason = ""
+                                    reload()
+                                } catch (ex: Exception) { error = "Ошибка: ${ex.message}" }
+                                finally { busy = false }
+                            }
+                        }) { Text("Списать со склада") }
+                }
             }
         }
         Text("Новый материал", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(value = name, onValueChange = { name = it },
             label = { Text("Название состава") }, modifier = Modifier.fillMaxWidth())
         Button(onClick = { unit = when (unit) { "g" -> "ml"; "ml" -> "pcs"; else -> "g" } }) {
-            Text("Единица: $unit (сменить)")
+            Text("Единица: ${materialUnitLabel(unit)} (сменить)")
         }
         Button(enabled = name.trim().isNotEmpty() && !busy, onClick = {
             scope.launch {
