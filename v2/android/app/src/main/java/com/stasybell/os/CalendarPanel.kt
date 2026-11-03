@@ -45,17 +45,30 @@ fun CalendarPanel(
         visits.forEach { visit ->
             val client = clients.find { it.id == visit.clientId }?.name ?: "Без клиента"
             val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
-            Text("${visit.localTime} · $client · $service")
-            Text("${visit.status} · ${visit.source}", style = MaterialTheme.typography.bodySmall)
-            if (visit.kind == "appointment" && visit.status == "confirmed") {
-                Button(onClick = { request(visit, "move") }) { Text("Перенести") }
-                Button(onClick = { request(visit, "complete") }) { Text("Услуга выполнена") }
-                Button(onClick = { request(visit, "no_show") }) { Text("Не пришёл") }
-                Button(onClick = { request(visit, "cancel") }) { Text("Отменить") }
-            }
-            if (visit.kind == "appointment" && visit.status in
-                    listOf("confirmed", "completed", "no_show", "cancelled")) {
-                Button(onClick = { request(visit, "delete") }) { Text("Удалить с историей") }
+            AppCard {
+                Text("${visit.localTime} · $client · $service", style = MaterialTheme.typography.titleMedium)
+                val status = when (visit.status) {
+                    "confirmed" -> "Подтверждена"
+                    "completed" -> "Выполнена"
+                    "cancelled" -> "Отменена"
+                    "no_show" -> "Не пришёл"
+                    else -> visit.status
+                }
+                val source = when (visit.source) {
+                    "phone" -> "вручную"
+                    else -> visit.source
+                }
+                Text("$status · $source", style = MaterialTheme.typography.bodySmall)
+                if (visit.kind == "appointment" && visit.status == "confirmed") {
+                    Button(onClick = { request(visit, "move") }) { Text("Перенести") }
+                    Button(onClick = { request(visit, "complete") }) { Text("Услуга выполнена") }
+                    Button(onClick = { request(visit, "no_show") }) { Text("Не пришёл") }
+                    Button(onClick = { request(visit, "cancel") }) { Text("Отменить") }
+                }
+                if (visit.kind == "appointment" && visit.status in
+                        listOf("confirmed", "completed", "no_show", "cancelled")) {
+                    Button(onClick = { request(visit, "delete") }) { Text("Удалить с историей") }
+                }
             }
         }
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
@@ -76,6 +89,9 @@ fun CalendarPanel(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("${visit.localTime} · $clientName")
+                    if (pendingAction == "complete") {
+                        Text("Поступление денег записывается отдельно вручную.")
+                    }
                     if (pendingAction == "move") {
                         OutlinedTextField(
                             value = moveDay, onValueChange = { moveDay = it },

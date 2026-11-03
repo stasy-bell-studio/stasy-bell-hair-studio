@@ -2,6 +2,12 @@ name: Android cloud acceptance
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [develop/stasy-bell-os-v2]
+    paths:
+      - 'v2/android/**'
+      - 'v2/api/**'
+      - '.github/workflows/android-cloud-acceptance.yml'
   push:
     branches: [codex/android-cloud-acceptance]
 

@@ -66,14 +66,16 @@ fun FinancePanel(api: ApiClient, token: String) {
     LaunchedEffect(token) { refresh() }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Деньги · ${period.monthValue}.${period.year}",
+        Text("Финансы · ${period.monthValue.toString().padStart(2, '0')}.${period.year}",
             style = MaterialTheme.typography.titleLarge)
         Text("Только фактические поступления и расходы. Разница — не бухгалтерская прибыль.")
         totals?.let {
-            Text("Поступления: ${formatCash(it.incomeKopecks)}")
-            Text("Расходы: ${formatCash(it.expenseKopecks)}")
-            Text("Денежная разница: ${formatCash(it.balanceKopecks)}",
-                style = MaterialTheme.typography.titleMedium)
+            AppCard {
+                Text("Поступления: ${formatCash(it.incomeKopecks)}", style = MaterialTheme.typography.titleMedium)
+                Text("Расходы: ${formatCash(it.expenseKopecks)}")
+                Text("Денежная разница: ${formatCash(it.balanceKopecks)}",
+                    style = MaterialTheme.typography.titleMedium)
+            }
             if (it.isClosed) Text("Месяц закрыт: добавление операций заблокировано.")
         }
         Button(onClick = { refresh() }, enabled = !loading) { Text("Обновить суммы") }
@@ -123,6 +125,6 @@ fun FinancePanel(api: ApiClient, token: String) {
         if (warning.isNotBlank()) {
             Text(warning, color = MaterialTheme.colorScheme.error)
         }
-        Text("Доходы от процедур вносятся после завершения визита. Экран пока не оформляет оплату процедуры по ссылке на запись.")
+        Text("Фактически полученную сумму мастер записывает вручную. Завершение визита не создаёт поступление.")
     }
 }

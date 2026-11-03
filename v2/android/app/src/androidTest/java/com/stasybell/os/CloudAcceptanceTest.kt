@@ -63,6 +63,7 @@ class CloudAcceptanceTest {
     }
 
     private fun book(client: String, time: String, day: String) {
+        click("Ещё")
         click("+ Запись")
         enter("Имя клиента", client)
         click("Выбрать услугу")
@@ -87,6 +88,7 @@ class CloudAcceptanceTest {
         waitFor("Ближайшие визиты")
         screenshot("02-today")
 
+        click("Ещё")
         click("График")
         waitFor("Рабочий график")
         enter("Дата, ГГГГ-ММ-ДД", iso)
@@ -98,11 +100,13 @@ class CloudAcceptanceTest {
         waitFor("График сохранён.")
         screenshot("03-schedule")
 
+        click("Ещё")
         click("Услуги")
         waitFor("Новая услуга")
         enter("Название", "Synthetic service")
         enter("Стоимость, ₽ целыми рублями", "1000")
         enter("Длительность, минуты", "60")
+        enter("Буфер, минуты", "15")
         click("Создать услугу")
         waitFor("Изменить · Synthetic service")
         screenshot("04-service-created")
@@ -123,14 +127,14 @@ class CloudAcceptanceTest {
         screenshot("07-moved")
         click("Отменить")
         click("Подтвердить")
-        waitFor("cancelled · phone")
+        waitFor("Отменена · вручную")
         screenshot("08-cancelled")
 
         book("Synthetic Completed", "14:00", iso)
         waitFor("$display 14:00 · Synthetic Completed", substring = true)
         click("Услуга выполнена")
         click("Подтвердить")
-        waitFor("completed · phone")
+        waitFor("Выполнена · вручную")
         screenshot("09-completed")
 
         click("Клиенты")
@@ -152,6 +156,7 @@ class CloudAcceptanceTest {
         waitFor("Денежная разница: 1200,00 ₽")
         screenshot("10-finance")
 
+        click("Ещё")
         click("Материалы")
         waitFor("Новый материал")
         enter("Название состава", "Synthetic material")

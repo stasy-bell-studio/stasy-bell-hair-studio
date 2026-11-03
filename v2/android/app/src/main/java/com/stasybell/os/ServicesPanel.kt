@@ -46,7 +46,7 @@ fun ServicesPanel(
                 name = item.name; variant = item.variant.orEmpty()
                 price = item.priceKopecks?.div(100)?.toString().orEmpty()
                 duration = item.minutes?.toString().orEmpty()
-                buffer = "0"
+                buffer = item.bufferMinutes.toString()
             }) { Text("Изменить · ${item.name}") }
         }
         Text(if (editingId == null) "Новая услуга" else "Редактирование услуги",

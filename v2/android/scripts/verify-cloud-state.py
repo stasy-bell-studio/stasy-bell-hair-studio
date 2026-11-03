@@ -30,6 +30,7 @@ def main():
         assert services[0]["name"] == "Synthetic service"
         assert services[0]["price_kopecks"] == 120000
         assert services[0]["duration_minutes"] == 60
+        assert services[0]["buffer_minutes"] == 15
         clients = {item["id"]: item["name"] for item in get("/owner/clients")["clients"]}
         visits = get("/owner/calendar", from_day=str(day), to_day=str(day))["entries"]
         by_client = {clients[item["client_id"]]: item for item in visits}

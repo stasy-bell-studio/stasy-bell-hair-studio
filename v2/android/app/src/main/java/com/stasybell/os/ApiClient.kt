@@ -14,7 +14,7 @@ import java.time.format.DateTimeFormatter
 
 data class ServiceItem(
     val id: String, val name: String, val variant: String?,
-    val minutes: Int?, val priceKopecks: Int?,
+    val minutes: Int?, val priceKopecks: Int?, val bufferMinutes: Int,
 )
 data class ClientItem(val id: String, val name: String)
 data class CashSummary(
@@ -109,6 +109,7 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                 row.optString("variant").takeIf { it.isNotBlank() && it != "null" },
                 if (row.isNull("duration_minutes")) null else row.getInt("duration_minutes"),
                 if (row.isNull("price_kopecks")) null else row.getInt("price_kopecks"),
+                row.getInt("buffer_minutes"),
             )
         }
     }
