@@ -16,11 +16,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 
-fun rublesToKopecks(raw: String): Int? {
-    val rub = raw.replace(" ", "").toIntOrNull()
-    return if (rub != null && rub > 0 && rub <= Int.MAX_VALUE / 100) rub * 100 else null
-}
+fun rublesToKopecks(raw: String): Int? = try {
+    val value = BigDecimal(raw.replace(" ", "").replace(",", "."))
+        .movePointRight(2).intValueExact()
+    value.takeIf { it > 0 }
+} catch (_: ArithmeticException) { null } catch (_: NumberFormatException) { null }
 
 @Composable
 fun ServicesPanel(
@@ -40,11 +42,11 @@ fun ServicesPanel(
         Text("Цены и время задаются мастером; ничего автоматически не добавляется.")
         services.forEach { item ->
             Text("${item.name} ${item.variant ?: ""}: " +
-                "${item.priceKopecks?.div(100) ?: "—"} ₽ · ${item.minutes ?: "—"} мин")
+                "${item.priceKopecks?.let { formatCash(it.toLong()) } ?: "—"} · ${item.minutes ?: "—"} мин")
             Button(onClick = {
                 editingId = item.id
                 name = item.name; variant = item.variant.orEmpty()
-                price = item.priceKopecks?.div(100)?.toString().orEmpty()
+                price = item.priceKopecks?.let { BigDecimal.valueOf(it.toLong(), 2).toPlainString() }.orEmpty()
                 duration = item.minutes?.toString().orEmpty()
                 buffer = item.bufferMinutes.toString()
             }) { Text("Изменить · ${item.name}") }
@@ -56,7 +58,7 @@ fun ServicesPanel(
         OutlinedTextField(value = variant, onValueChange = { variant = it },
             label = { Text("Вариант (если нужен)") })
         OutlinedTextField(value = price, onValueChange = { price = it },
-            label = { Text("Стоимость, ₽ целыми рублями") })
+            label = { Text("Стоимость услуги, ₽") })
         OutlinedTextField(value = duration, onValueChange = { duration = it },
             label = { Text("Длительность, минуты") })
         OutlinedTextField(value = buffer, onValueChange = { buffer = it },

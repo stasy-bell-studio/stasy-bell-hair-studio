@@ -28,7 +28,7 @@ def main():
         services = get("/owner/services")["services"]
         assert len(services) == 1
         assert services[0]["name"] == "Synthetic service"
-        assert services[0]["price_kopecks"] == 120000
+        assert services[0]["price_kopecks"] == 120050
         assert services[0]["duration_minutes"] == 60
         assert services[0]["buffer_minutes"] == 15
         clients = {item["id"]: item["name"] for item in get("/owner/clients")["clients"]}
