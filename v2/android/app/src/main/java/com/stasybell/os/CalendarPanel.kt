@@ -147,6 +147,19 @@ fun CalendarPanel(
             Text(if (actualWindows.isEmpty()) "Открытых рабочих окон нет." else
                 "Рабочие окна: " + actualWindows.joinToString(", ") { "${it.start.take(5)}–${it.end.take(5)}" },
                 style = MaterialTheme.typography.bodySmall)
+            if (actualWindows.isNotEmpty()) {
+                Text("Распорядок дня", style = MaterialTheme.typography.titleMedium)
+                Text("Занятые интервалы включают буфер. Интервал без записи не гарантирует свободный слот для конкретной услуги.",
+                    style = MaterialTheme.typography.bodySmall)
+                dayTimeline(from, actualWindows, rangeVisits).forEach { slice ->
+                    val interval = "${slice.start}–${slice.end}"
+                    val label = slice.visit?.let { visit ->
+                        val client = clients.find { it.id == visit.clientId }?.name ?: "Блок времени"
+                        "$client · ${visitStatusLabel(visit.status)}"
+                    } ?: "Без записи"
+                    AppCard { Text("$interval · $label") }
+                }
+            }
         }
         if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty()) Text("На выбранные даты записей нет.")
         if (!rangeLoading && rangeError.isBlank() && rangeMode in listOf("Неделя", "Месяц")) {

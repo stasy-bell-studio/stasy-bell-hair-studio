@@ -31,7 +31,7 @@ data class CashEntry(
 
 data class VisitItem(
     val id: String, val clientId: String?, val serviceId: String?,
-    val startsAt: String, val localTime: String, val localEnd: String, val status: String,
+    val startsAt: String, val occupiedUntil: String, val localTime: String, val localEnd: String, val status: String,
     val source: String, val kind: String,
     val durationMinutes: Int?, val quotedPriceKopecks: Long?,
 )
@@ -156,6 +156,7 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                 clientId = row.optString("client_id").takeIf { it.isNotBlank() && it != "null" },
                 serviceId = row.optString("service_id").takeIf { it.isNotBlank() && it != "null" },
                 startsAt = row.getString("starts_at"),
+                occupiedUntil = row.getString("occupied_until"),
                 localTime = localVisitTime(row.getString("starts_at")),
                 localEnd = localVisitTime(row.getString("ends_at")),
                 status = row.getString("status"),
