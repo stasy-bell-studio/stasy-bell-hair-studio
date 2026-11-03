@@ -39,6 +39,8 @@ fun visitStatusLabel(status: String): String = when (status) {
     else -> status
 }
 
+fun countsAsVisit(status: String): Boolean = status in setOf("confirmed", "pending_channel", "completed")
+
 @Composable
 fun CalendarPanel(
     api: ApiClient, token: String, visits: List<VisitItem>,
@@ -137,8 +139,9 @@ fun CalendarPanel(
             Text("Перейти к дате")
         }
         if (!rangeLoading && rangeError.isBlank()) {
-            val count = rangeVisits.count { it.kind == "appointment" && it.status !in listOf("cancelled", "no_show") }
+            val count = rangeVisits.count { it.kind == "appointment" && countsAsVisit(it.status) }
             Text("Записей за период: $count", style = MaterialTheme.typography.bodySmall)
+            Text("Ожидающие, подтверждённые и выполненные.", style = MaterialTheme.typography.bodySmall)
         }
         if (rangeLoading) Text("Загрузка календаря…")
         if (rangeError.isNotBlank()) Text(rangeError, color = MaterialTheme.colorScheme.error)
@@ -170,7 +173,7 @@ fun CalendarPanel(
             groups.forEach { group ->
                 val dayLabels = group.map { it.format(display) }.toSet()
                 val count = rangeVisits.count {
-                    it.kind == "appointment" && it.status !in listOf("cancelled", "no_show") &&
+                    it.kind == "appointment" && countsAsVisit(it.status) &&
                         it.localTime.substringBefore(" ") in dayLabels
                 }
                 val label = if (group.size == 1) group.first().format(display)

@@ -187,7 +187,7 @@ fun MasterApp() {
                 when (page) {
                     "Сегодня" -> {
                         val appointments = visits.filter {
-                            it.kind == "appointment" && it.status !in listOf("cancelled", "no_show")
+                            it.kind == "appointment" && countsAsVisit(it.status)
                         }
                         val todayVisits = appointments.filter { it.localTime.startsWith(today.format(
                             java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
@@ -224,6 +224,7 @@ fun MasterApp() {
                                 Text("${visit.localTime} · $client · $service")
                             }
                             Text("Всего записей на 8 дней: ${appointments.size}", style = MaterialTheme.typography.bodySmall)
+                            Text("Ожидающие, подтверждённые и выполненные.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     "Календарь" -> {
