@@ -148,6 +148,8 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                     onClick = { reopenReason = ""; reopenDialog = true },
                     enabled = !loading && !requiresRefresh,
                 ) { Text("Открыть месяц повторно") }
+            } else if (period > currentPeriod) {
+                Text("Будущий месяц нельзя закрыть заранее.")
             } else {
                 StasyButton(
                     onClick = { closeDialog = true },
