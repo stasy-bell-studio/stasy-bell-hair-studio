@@ -119,7 +119,7 @@ fun CalendarPanel(
 
     val compactFont = LocalDensity.current.fontScale >= 1.3f
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        EditorialCard {
+        EditorialCard(spacing = 0.dp) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("День", "Неделя", "Месяц").forEach { mode ->
                 FilterChip(selected = rangeMode == mode, onClick = { rangeMode = mode },
@@ -186,7 +186,6 @@ fun CalendarPanel(
                 .mapNotNull { parseStudioDate(it.localTime.substringBefore(" ")) }
                 .groupingBy { it }
                 .eachCount()
-            if (rangeVisits.isEmpty()) Text("В выбранном периоде записей нет.", style = MaterialTheme.typography.bodySmall)
             CalendarDateGrid(
                 dates = dates,
                 anchor = anchor,

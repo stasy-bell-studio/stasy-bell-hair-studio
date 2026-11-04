@@ -55,11 +55,12 @@ fun ForestSurface(modifier: Modifier = Modifier, content: @Composable ColumnScop
 }
 
 @Composable
-fun EditorialCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun EditorialCard(modifier: Modifier = Modifier, spacing: androidx.compose.ui.unit.Dp = 8.dp,
+    content: @Composable ColumnScope.() -> Unit) {
     Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
         color = StasyColors.Surface, border = BorderStroke(1.dp, StasyColors.Border),
         shadowElevation = 2.dp) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(spacing), content = content)
     }
 }
 

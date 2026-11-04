@@ -44,6 +44,8 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.08.00"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.ui:ui")
+    // Patch fixes for recomposition/slot-table invalidations in the 1.9 runtime.
+    implementation("androidx.compose.runtime:runtime:1.9.5")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
