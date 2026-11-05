@@ -4,6 +4,9 @@ import android.graphics.Bitmap
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.graphics.asAndroidBitmap
 import java.io.File
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -62,8 +65,14 @@ class VisualReviewTest {
         capture("review-02-calendar")
 
         compose.onNodeWithContentDescription("Финансы").performClick()
-        waitFor("Поступления по неделям")
-        compose.onNodeWithContentDescription("Денежная разница: 10200,00 ₽").assertIsDisplayed()
+        waitFor("Поступления и расходы по неделям")
+        compose.onNodeWithContentDescription("Итог: 10 200 ₽").assertIsDisplayed()
+        val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
+        val firstDay = ((today.dayOfMonth - 1) / 7) * 7 + 1
+        val lastDay = minOf(firstDay + 6, YearMonth.from(today).lengthOfMonth())
+        compose.onNodeWithContentDescription(
+            "$firstDay–$lastDay: поступления 12 000 ₽, расходы 1 800 ₽",
+        ).assertExists()
         capture("review-03-finance")
     }
 }

@@ -4,10 +4,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -18,6 +21,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
@@ -28,6 +32,48 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 val studioLocale = Locale.forLanguageTag("ru-RU")
+
+data class WeeklyCashTotals(
+    val label: String,
+    val incomeKopecks: Long,
+    val expenseKopecks: Long,
+)
+
+fun summarizeCashByWeek(
+    transactions: List<CashEntry>,
+    period: YearMonth,
+): List<WeeklyCashTotals> {
+    val daysInMonth = period.lengthOfMonth()
+    val weeks = (0 until (daysInMonth + 6) / 7).map { index ->
+        val firstDay = index * 7 + 1
+        WeeklyCashTotals(
+            label = "$firstDay–${minOf(firstDay + 6, daysInMonth)}",
+            incomeKopecks = 0,
+            expenseKopecks = 0,
+        )
+    }
+    val incomes = LongArray(weeks.size)
+    val expenses = LongArray(weeks.size)
+    val moscow = ZoneId.of("Europe/Moscow")
+
+    transactions.forEach { entry ->
+        val day = OffsetDateTime.parse(entry.occurredAt)
+            .atZoneSameInstant(moscow)
+            .toLocalDate()
+        if (YearMonth.from(day) != period) return@forEach
+        val weekIndex = (day.dayOfMonth - 1) / 7
+        val signedAmount = if (entry.correctionOfId != null) -entry.amountKopecks
+            else entry.amountKopecks
+        when (entry.kind) {
+            "income" -> incomes[weekIndex] += signedAmount
+            "expense" -> expenses[weekIndex] += signedAmount
+        }
+    }
+
+    return weeks.mapIndexed { index, week ->
+        week.copy(incomeKopecks = incomes[index], expenseKopecks = expenses[index])
+    }
+}
 
 @Composable
 fun ForestSurface(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -157,54 +203,101 @@ fun TodayOverview(today: LocalDate, visits: List<VisitItem>, clients: List<Clien
 
 @Composable
 fun CashOverview(summary: CashSummary, transactions: List<CashEntry>, period: YearMonth) {
+    val weeklyTotals = remember(transactions, period) {
+        summarizeCashByWeek(transactions, period)
+    }
+    // Income and expenses share one scale so their column heights are comparable.
+    val commonMaximum = weeklyTotals.flatMap {
+        listOf(it.incomeKopecks, it.expenseKopecks)
+    }.filter { it > 0 }.maxOrNull()?.coerceAtLeast(1L) ?: 1L
     ForestSurface {
-    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        GlassMetric("Поступления", formatCash(summary.incomeKopecks), Modifier.weight(1f).semantics(mergeDescendants = true) {
-            contentDescription = "Поступления: ${formatCash(summary.incomeKopecks)}"
-        })
-        EditorialCard(Modifier.weight(1f).semantics(mergeDescendants = true) {
-            contentDescription = "Расходы: ${formatCash(summary.expenseKopecks)}"
-        }) {
-            Text("Расходы", style = MaterialTheme.typography.bodySmall, color = StasyColors.Muted)
-            Text(formatCash(summary.expenseKopecks), fontSize = 23.sp, lineHeight = 29.sp,
-                fontWeight = FontWeight.SemiBold)
-        }
-    }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 12.dp).semantics(mergeDescendants = true) {
-        contentDescription = "Денежная разница: ${formatCash(summary.balanceKopecks)}"
-    }) {
-        Text("Денежная разница", style = MaterialTheme.typography.bodySmall, color = StasyColors.Mint)
-        Text(formatCash(summary.balanceKopecks), style = MaterialTheme.typography.headlineSmall,
-            color = Color.White)
-        Text("Фактические деньги · не бухгалтерская прибыль", fontSize = 11.sp, color = StasyColors.Mint)
-    }
-    }
-    }
-    EditorialCard(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
-        Text("Поступления по неделям", style = MaterialTheme.typography.titleMedium)
-        val weeks = (0 until (period.lengthOfMonth() + 6) / 7).map { week ->
-            transactions.filter { it.kind == "income" &&
-                (OffsetDateTime.parse(it.occurredAt).atZoneSameInstant(ZoneId.of("Europe/Moscow")).dayOfMonth - 1) / 7 == week }
-                .sumOf { if (it.correctionOfId != null) -it.amountKopecks else it.amountKopecks }
-        }
-        val max = weeks.maxOf { kotlin.math.abs(it) }.coerceAtLeast(1)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            weeks.forEachIndexed { index, amount ->
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.height(68.dp).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                        Box(Modifier.width(26.dp).height((kotlin.math.abs(amount).toFloat() / max * 60).coerceAtLeast(2f).dp)
-                            .background(if (amount < 0) StasyColors.Error else StasyColors.Primary.copy(alpha = .4f + index * .12f),
-                                RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)))
-                    }
-                    Text("${index * 7 + 1}–${minOf((index + 1) * 7, period.lengthOfMonth())}",
-                        fontSize = 10.sp, color = StasyColors.Muted)
+        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GlassMetric(
+                    "Поступления", formatCashLabel(summary.incomeKopecks),
+                    Modifier.weight(1f).semantics(mergeDescendants = true) {
+                        contentDescription = "Поступления: ${formatCashLabel(summary.incomeKopecks)}"
+                    },
+                )
+                EditorialCard(Modifier.weight(1f).semantics(mergeDescendants = true) {
+                    contentDescription = "Расходы: ${formatCashLabel(summary.expenseKopecks)}"
+                }) {
+                    Text("Расходы", style = MaterialTheme.typography.bodySmall, color = StasyColors.Muted)
+                    Text(formatCashLabel(summary.expenseKopecks), fontSize = 23.sp, lineHeight = 29.sp,
+                        fontWeight = FontWeight.SemiBold)
                 }
             }
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 12.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "Итог: ${formatCashLabel(summary.balanceKopecks)}"
+                    },
+            ) {
+                Text("Итог", style = MaterialTheme.typography.bodySmall, color = StasyColors.Mint)
+                Text(formatCashLabel(summary.balanceKopecks), style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White)
+            }
         }
-        Text("₽ · ${period.monthValue.toString().padStart(2, '0')}.${period.year} · с учётом сторно",
-            fontSize = 11.sp, color = StasyColors.Muted)
-        Text(weeks.mapIndexed { index, amount -> "${index + 1}-я: ${formatCash(amount)}" }.joinToString(" · "),
-            fontSize = 11.sp, lineHeight = 16.sp, color = StasyColors.Body)
+    }
+    EditorialCard(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+        Text("Поступления и расходы по неделям", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            CashLegendItem(StasyColors.Primary, "Поступления")
+            CashLegendItem(StasyColors.Muted, "Расходы")
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            weeklyTotals.forEach { week ->
+                WeeklyCashPair(week, commonMaximum)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CashLegendItem(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(10.dp).background(color, RoundedCornerShape(2.dp)))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = StasyColors.Body)
+    }
+}
+
+@Composable
+private fun WeeklyCashPair(week: WeeklyCashTotals, commonMaximum: Long) {
+    Column(
+        Modifier.width(184.dp).semantics(mergeDescendants = true) {
+            contentDescription = "${week.label}: поступления ${formatCashLabel(week.incomeKopecks)}, " +
+                "расходы ${formatCashLabel(week.expenseKopecks)}"
+        },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(formatCashLabel(week.incomeKopecks), Modifier.weight(1f).heightIn(min = 34.dp),
+                fontSize = 12.sp, lineHeight = 15.sp, color = StasyColors.Body, textAlign = TextAlign.Center)
+            Text(formatCashLabel(week.expenseKopecks), Modifier.weight(1f).heightIn(min = 34.dp),
+                fontSize = 12.sp, lineHeight = 15.sp, color = StasyColors.Body, textAlign = TextAlign.Center)
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            WeeklyCashBar(week.incomeKopecks, commonMaximum, StasyColors.Primary, Modifier.weight(1f))
+            WeeklyCashBar(week.expenseKopecks, commonMaximum, StasyColors.Muted, Modifier.weight(1f))
+        }
+        Text(week.label, Modifier.fillMaxWidth(), fontSize = 12.sp, lineHeight = 16.sp,
+            color = StasyColors.Muted, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun WeeklyCashBar(amountKopecks: Long, commonMaximum: Long, color: Color, modifier: Modifier) {
+    Box(modifier.height(72.dp), contentAlignment = Alignment.BottomCenter) {
+        if (amountKopecks > 0) {
+            val barHeight = (amountKopecks.toDouble() / commonMaximum * 68.0)
+                .coerceIn(2.0, 68.0).dp
+            Box(Modifier.width(24.dp).height(barHeight)
+                .background(color, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)))
+        }
+        HorizontalDivider(Modifier.align(Alignment.BottomCenter), color = StasyColors.Border)
     }
 }

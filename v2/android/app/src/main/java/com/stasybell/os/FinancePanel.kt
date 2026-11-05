@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
@@ -36,6 +37,16 @@ fun formatCash(kopecks: Long): String {
     val rubles = abs / 100
     val kopecksRemainder = abs % 100
     return "$sign$rubles,${kopecksRemainder.toString().padStart(2, '0')} ₽"
+}
+
+fun formatCashLabel(kopecks: Long): String {
+    val amount = BigInteger.valueOf(kopecks).abs()
+    val (rubles, remainder) = amount.divideAndRemainder(BigInteger.valueOf(100))
+    val groupedRubles = rubles.toString().reversed().chunked(3).joinToString(" ").reversed()
+    val sign = if (kopecks < 0) "-" else ""
+    val suffix = if (remainder == BigInteger.ZERO) " ₽"
+        else ",${remainder.toString().padStart(2, '0')} ₽"
+    return "$sign$groupedRubles$suffix"
 }
 
 fun parseCash(raw: String): Long? = try {
@@ -194,8 +205,6 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
         if (warning.isNotBlank()) {
             Text(warning, color = MaterialTheme.colorScheme.error)
         }
-        Text("Завершение визита не создаёт поступление.", style = MaterialTheme.typography.bodySmall,
-            color = StasyColors.Muted)
         Text("История операций", style = MaterialTheme.typography.titleMedium)
         if (!loading && warning.isBlank() && totals != null && transactions.isEmpty()) {
             Text("В этом месяце операций пока нет.")
@@ -262,7 +271,7 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                 Text("Закрытие · версия ${closure.version}", style = MaterialTheme.typography.titleMedium)
                 Text("Поступления: ${formatCash(closure.incomeKopecks)}")
                 Text("Расходы: ${formatCash(closure.expenseKopecks)}")
-                Text("Денежная разница: ${formatCash(closure.balanceKopecks)}")
+                Text("Итог: ${formatCashLabel(closure.balanceKopecks)}")
                 if (closure.reopenedAt != null) {
                     Text("Повторно открыто · ${localVisitTime(closure.reopenedAt)}")
                     closure.reopenReason?.let { Text("Причина: $it") }
@@ -282,7 +291,7 @@ fun FinancePanel(api: ApiClient, token: String, onChanged: () -> Unit) {
                 totals?.let {
                     Text("Поступления: ${formatCash(it.incomeKopecks)}")
                     Text("Расходы: ${formatCash(it.expenseKopecks)}")
-                    Text("Денежная разница: ${formatCash(it.balanceKopecks)}")
+                    Text("Итог: ${formatCashLabel(it.balanceKopecks)}")
                 }
             }
         },

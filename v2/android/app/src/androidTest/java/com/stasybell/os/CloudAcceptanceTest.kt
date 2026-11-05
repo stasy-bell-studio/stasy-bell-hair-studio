@@ -3,6 +3,7 @@ package com.stasybell.os
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.click
@@ -45,6 +46,13 @@ class CloudAcceptanceTest {
             compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty() ||
                 compose.onAllNodesWithContentDescription(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    private fun currentWeekRange(): String {
+        val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
+        val firstDay = ((today.dayOfMonth - 1) / 7) * 7 + 1
+        val lastDay = minOf(firstDay + 6, today.lengthOfMonth())
+        return "$firstDay–$lastDay"
     }
 
     private fun click(text: String) {
@@ -240,7 +248,7 @@ class CloudAcceptanceTest {
         click("Назад к клиентам")
 
         click("Финансы")
-        waitFor("Поступления: 0,00 ₽")
+        waitFor("Поступления: 0 ₽")
         screenshot("10-finance-overview")
         click("Следующий месяц")
         waitFor("Будущий месяц нельзя закрыть заранее.")
@@ -248,26 +256,29 @@ class CloudAcceptanceTest {
             "Future months must not offer a close action."
         }
         click("Предыдущий месяц")
-        waitFor("Поступления: 0,00 ₽")
+        waitFor("Поступления: 0 ₽")
         click("Новая операция")
         enter("Сумма, ₽", "900")
         click("Записать фактическую операцию")
-        waitFor("Поступления: 900,00 ₽")
+        waitFor("Поступления: 900 ₽")
         enter("Сумма, ₽", "1500")
         compose.onNodeWithText("Записать фактическую операцию")
             .performTouchInput {
                 click()
                 click()
             }
-        waitFor("Поступления: 2400,00 ₽")
+        waitFor("Поступления: 2 400 ₽")
         click("Доход — переключить на расход")
         click("Прочее")
         click("Материалы")
         enter("Сумма, ₽", "300,25")
         click("Записать фактическую операцию")
         waitFor("Расходы: 300,25 ₽")
-        waitFor("Денежная разница: 2099,75 ₽")
-        compose.onNodeWithContentDescription("Поступления: 2400,00 ₽").performScrollTo()
+        waitFor("Итог: 2 099,75 ₽")
+        compose.onNodeWithContentDescription(
+            "${currentWeekRange()}: поступления 2 400 ₽, расходы 300,25 ₽",
+        ).assertExists()
+        compose.onNodeWithContentDescription("Поступления: 2 400 ₽").performScrollTo()
         screenshot("10-finance")
         waitFor("Расход · Материалы")
         val history = compose.onNodeWithText("Расход · Материалы")
@@ -296,8 +307,11 @@ class CloudAcceptanceTest {
         click("Сторнировать Расход · Материалы")
         enter("Причина корректировки", "Проверка тестового сторно")
         click("Подтвердить сторно")
-        waitFor("Расходы: 0,00 ₽")
-        waitFor("Денежная разница: 2400,00 ₽")
+        waitFor("Расходы: 0 ₽")
+        waitFor("Итог: 2 400 ₽")
+        compose.onNodeWithContentDescription(
+            "${currentWeekRange()}: поступления 2 400 ₽, расходы 0 ₽",
+        ).assertExists()
         waitFor("Сторно · Расход · Материалы")
         waitFor("Причина: Проверка тестового сторно")
         waitFor("Причина: Сверка тестового месяца")
@@ -307,7 +321,7 @@ class CloudAcceptanceTest {
         click("Предыдущий месяц")
         waitFor("Добавление операций доступно только в текущем месяце.")
         click("Следующий месяц")
-        waitFor("Поступления: 2400,00 ₽")
+        waitFor("Поступления: 2 400 ₽")
         click("Сегодня")
         waitFor("2400,00 ₽")
         screenshot("10-today-after-cash")
