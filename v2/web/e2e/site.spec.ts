@@ -143,7 +143,9 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   await expect(timeField.getByRole("option", { name: /10:00/ })).toBeAttached();
   await timeField.selectOption(`${bookingDay}T07:00:00Z`);
   await page.getByLabel("Как к вам обращаться").fill("Тестовый гость");
-  await page.getByRole("checkbox").check();
+  await expect(page.getByRole("button", { name: "Зарезервировать время" })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "Политика обработки персональных данных" })).toBeVisible();
+  await page.getByLabel(/Даю отдельное согласие/).check();
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = "auto";
     window.scrollTo(0, 0);
@@ -245,4 +247,30 @@ test("expired messenger hold offers a clean restart", async ({ page }) => {
   await page.screenshot({ path: test.info().outputPath("booking-expired.png"), fullPage: true });
   await page.getByRole("button", { name: "Выбрать другое время" }).click();
   await expect(page.getByLabel("Процедура")).toBeVisible();
+});
+
+test("privacy policy is independent and responsive on desktop and mobile", async ({ page }) => {
+  await page.goto("/#privacy");
+  await expect(page.getByRole("heading", { name: "Обработка персональных данных", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Оператор данных/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Срок хранения и удаление/ })).toBeVisible();
+  await expect(page.getByLabel("Процедура")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "На главную" })).toBeVisible();
+  for (const width of [320, 375, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
+    await page.screenshot({ path: test.info().outputPath(`privacy-${width}.png`), fullPage: true });
+  }
+});
+
+test("policy link supports keyboard navigation and a return to home", async ({ page }) => {
+  await page.goto("/");
+  const policyLink = page.getByRole("link", { name: "Политика обработки персональных данных" });
+  await policyLink.focus();
+  await expect(policyLink).toBeFocused();
+  await policyLink.press("Enter");
+  await expect(page.getByRole("heading", { name: "Обработка персональных данных", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: "На главную" }).click();
+  await expect(page.getByRole("heading", { name: "Stasy Bell", level: 1 })).toBeVisible();
 });
