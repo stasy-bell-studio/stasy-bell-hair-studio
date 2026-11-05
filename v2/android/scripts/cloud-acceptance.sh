@@ -6,10 +6,30 @@ mkdir -p "$EVIDENCE/screenshots"
 collect() {
     adb logcat -d -v threadtime > "$EVIDENCE/logcat.txt" || true
     adb pull /sdcard/acceptance/. "$EVIDENCE/screenshots/" || true
+    adb shell wm size reset || true
+    adb shell wm density reset || true
+    adb shell settings put system font_scale 1.0 || true
 }
 trap collect EXIT
 adb reverse tcp:8000 tcp:8000
 adb logcat -c
+# Configure before instrumentation launches Compose. Changing density/font from
+# a running Compose test previously stalled its configuration transition.
+adb shell wm size 393x852
+adb shell wm density 160
+adb shell settings put system font_scale 1.0
 cd "$ROOT/v2/android"
-gradle :app:testDebugUnitTest :app:connectedDebugAndroidTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/
+if [[ "${STASY_REVIEW_MODE:-full}" != "visual" ]]; then
+timeout 12m gradle :app:connectedDebugAndroidTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/ \
+    -Pandroid.testInstrumentationRunnerArguments.class=com.stasybell.os.CloudAcceptanceTest#ownerJourney
 python "$ROOT/v2/android/scripts/verify-cloud-state.py" | tee "$EVIDENCE/backend-verification.txt"
+cp -R app/build/outputs/androidTest-results "$EVIDENCE/owner-journey-results"
+fi
+python "$ROOT/v2/android/scripts/seed-visual-review.py" | tee "$EVIDENCE/visual-fixtures.txt"
+timeout 12m gradle :app:connectedDebugAndroidTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/ \
+    -Pandroid.testInstrumentationRunnerArguments.class=com.stasybell.os.VisualReviewTest
+collect
+trap - EXIT
+for image in review-01-home review-02-calendar review-03-finance; do
+    test -s "$EVIDENCE/screenshots/$image.png"
+done

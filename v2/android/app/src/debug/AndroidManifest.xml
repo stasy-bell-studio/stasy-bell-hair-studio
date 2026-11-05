@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- Debug only: adb-reversed 127.0.0.1. Release manifest forbids HTTP. -->
+    <!-- Debug only: emulator loopback or explicitly configured RFC1918 LAN API. Release blocks HTTP. -->
     <application
         android:usesCleartextTraffic="true"
         tools:replace="android:usesCleartextTraffic"/>

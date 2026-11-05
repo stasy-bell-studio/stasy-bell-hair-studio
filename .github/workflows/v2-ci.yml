@@ -7,7 +7,7 @@ on:
       - 'v2/**'
       - '.github/workflows/v2-ci.yml'
   pull_request:
-    branches: [main]
+    branches: [main, develop/stasy-bell-os-v2]
     paths:
       - 'v2/**'
       - '.github/workflows/v2-ci.yml'
@@ -69,7 +69,7 @@ jobs:
           restored=$(docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
             psql -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
             -c "SELECT version_num FROM alembic_version")
-          test "$restored" = "0006_notification_outbox"
+          test "$restored" = "0007_owner_sessions"
           restored_rows=$(docker run --rm --network host -e PGPASSWORD=ci_only_not_a_secret postgres:16 \
             psql -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U ci_stasy -d stasy_restore_test \
             -c "SELECT count(*) FROM clients WHERE id='11111111-1111-4111-8111-111111111111' AND name='CI_BACKUP_MARKER_FAKE'")
@@ -97,7 +97,7 @@ jobs:
         with:
           gradle-version: '8.14.3'
       - name: Compile private debug APK and unit tests
-        run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/
       - name: Keep debug APK for emulator acceptance (never publish to Play)
         uses: actions/upload-artifact@v4
         with:
@@ -123,3 +123,53 @@ jobs:
         run: npx vitest run v2/web/src/prices.test.ts --config v2/web/vite.config.ts
       - name: Build separate V2 site (no publish)
         run: npx vite build --config v2/web/vite.config.ts
+
+  mac-lan-safety:
+    name: Mac LAN debug scripts (syntax only; no launch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify macOS helper scripts and LAN binding defaults
+        run: |
+          set -euo pipefail
+          bash -n v2/android/scripts/run-mac-lan.sh
+          bash -n v2/android/scripts/stop-mac-lan.sh
+          grep -Fq 'STASY_API_BIND_IP:-127.0.0.1' v2/infra/compose.yaml
+          grep -Fq 'macHost' v2/android/app/src/main/java/com/stasybell/os/MainActivity.kt
+          echo "Mac LAN helpers pass shell syntax and keep loopback as default"
+  
+  staging-safety:
+    name: Private staging config checks (synthetic only; no deployment)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate isolated private HTTPS compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/stasy-staging.env" <<'ENV'
+          STASY_API_DOMAIN=stage-api.example.com
+          STASY_ACME_EMAIL=owner@example.com
+          POSTGRES_USER=stasy_stage
+          POSTGRES_DB=stasy_stage
+          POSTGRES_PASSWORD=long_random_example_password_123
+          DATABASE_URL=postgresql+psycopg://stasy_stage:long_random_example_password_123@db:5432/stasy_stage
+          JWT_SECRET=this_is_a_dummy_very_long_12345678901234567890
+          STASY_PUBLIC_BOOKING_ENABLED=0
+          ENV
+          chmod 600 "$RUNNER_TEMP/stasy-staging.env"
+          python3 v2/infra/staging/preflight.py "$RUNNER_TEMP/stasy-staging.env"
+          export STASY_ENV_FILE="$RUNNER_TEMP/stasy-staging.env"
+          docker compose --env-file "$STASY_ENV_FILE" -f v2/infra/staging/compose.yaml config --quiet
+          docker compose --env-file "$STASY_ENV_FILE" -f v2/infra/staging/compose.yaml config --format json > "$RUNNER_TEMP/compose.json"
+          python3 - "$RUNNER_TEMP/compose.json" <<'PYTHON'
+          import json, sys
+          services = json.load(open(sys.argv[1], encoding="utf-8"))["services"]
+          assert "ports" not in services["db"] and "ports" not in services["api"]
+          assert services["api"]["environment"]["STASY_PUBLIC_BOOKING_ENABLED"] == "0"
+          assert services["caddy"]["ports"]
+          print("Internal DB/API, forced booking OFF, only HTTPS edge published")
+          PYTHON

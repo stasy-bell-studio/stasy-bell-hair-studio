@@ -23,10 +23,10 @@ android {
 
     val devApiBase = providers.gradleProperty("stasyApiBaseUrl")
         .orElse("https://api.invalid/").get()
-    val loopbackDebug = devApiBase.startsWith("http://127.0.0.1:") &&
+    val localDebug = devApiBase == "http://127.0.0.1:8000/" &&
         gradle.startParameter.taskNames.none { it.contains("Release", ignoreCase = true) }
-    require((devApiBase.startsWith("https://") || loopbackDebug) && devApiBase.endsWith("/")) {
-        "API base must be HTTPS, or 127.0.0.1 in debug-only emulator builds"
+    require((devApiBase.startsWith("https://") || localDebug) && devApiBase.endsWith("/")) {
+        "API base must be HTTPS; only debug loopback is permitted as an HTTP build default"
     }
     defaultConfig {
         buildConfigField("String", "API_BASE_URL", "\"$devApiBase\"")
@@ -43,7 +43,10 @@ android {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.08.00"))
     implementation("androidx.activity:activity-compose:1.10.1")
+    implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.compose.ui:ui")
+    // Patch fixes for recomposition/slot-table invalidations in the 1.9 runtime.
+    implementation("androidx.compose.runtime:runtime:1.9.5")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
