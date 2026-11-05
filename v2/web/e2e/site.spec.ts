@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const apiOrigin = "https://api.stasybell.test";
 
-async function mockPublicApi(page: Page) {
+async function mockPublicApi(page: Page, finalStatus: "pending_channel" | "confirmed" | "expired" = "confirmed") {
   let bookingBody: Record<string, unknown> | undefined;
 
   await page.route(`${apiOrigin}/**`, async (route) => {
@@ -42,8 +42,8 @@ async function mockPublicApi(page: Page) {
           id: "synthetic-hold",
           status: "pending_channel",
           channel: "telegram",
-          hold_until: "2026-11-10T07:45:00Z",
-          confirmation_token_expires_at: "2026-11-10T07:15:00Z",
+          hold_until: new Date(Date.now() + 45 * 60_000).toISOString(),
+          confirmation_token_expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
           channel_confirmation_code: "123456",
           hold_secret: "synthetic-test-secret",
           channel_link: "https://t.me/example",
@@ -55,7 +55,7 @@ async function mockPublicApi(page: Page) {
 
     if (url.pathname === "/public/holds/synthetic-hold/status") {
       await new Promise((resolve) => setTimeout(resolve, 1200));
-      await route.fulfill({ json: { status: "confirmed" } });
+      await route.fulfill({ json: { status: finalStatus } });
       return;
     }
 
@@ -105,7 +105,9 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   await page.getByLabel("Процедура").selectOption("synthetic-service");
   const dateField = page.getByLabel("Дата");
   const minimumDate = await dateField.getAttribute("min");
-  if (!minimumDate) throw new Error("Minimum booking date is missing");
+  const maximumDate = await dateField.getAttribute("max");
+  if (!minimumDate || !maximumDate) throw new Error("Booking date bounds are missing");
+  expect((Date.parse(maximumDate) - Date.parse(minimumDate)) / 86400000).toBe(29);
   const [year, month, day] = minimumDate.split("-").map(Number);
   const bookingDay = new Date(Date.UTC(year, month - 1, day + 7)).toISOString().slice(0, 10);
   await dateField.fill(bookingDay);
@@ -117,8 +119,10 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   await page.getByRole("button", { name: "Зарезервировать время" }).click();
 
   await expect(page.getByRole("heading", { name: "Осталось подтвердить запись" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("booking-pending.png"), fullPage: true });
   await expect(page.getByText("Синтетический тест подтверждения записи.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Запись подтверждена!" })).toBeVisible({ timeout: 5_000 });
+  await page.screenshot({ path: test.info().outputPath("booking-confirmed.png"), fullPage: true });
   expect(api.getBookingBody()).toMatchObject({
     name: "Тестовый гость",
     service_id: "synthetic-service",
@@ -127,4 +131,47 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   });
   expect(api.getBookingBody()).not.toHaveProperty("payment");
   await expect(page.getByRole("button", { name: /оплатить|внести оплату/i })).toHaveCount(0);
+});
+
+test("pending messenger hold survives a reload without becoming confirmed", async ({ page }) => {
+  test.skip(!process.env.VITE_API_URL, "requires synthetic API");
+  await mockPublicApi(page, "pending_channel");
+  await page.goto("/#booking");
+  await page.getByLabel("Процедура").selectOption("synthetic-service");
+  const minimumDate = await page.getByLabel("Дата").getAttribute("min");
+  if (!minimumDate) throw new Error("Missing booking date");
+  const [year, month, day] = minimumDate.split("-").map(Number);
+  const bookingDay = new Date(Date.UTC(year, month - 1, day + 7)).toISOString().slice(0, 10);
+  await page.getByLabel("Дата").fill(bookingDay);
+  await expect(page.getByLabel("Свободное время").getByRole("option", { name: /10:00/ })).toBeAttached();
+  await page.getByLabel("Свободное время").selectOption(`${bookingDay}T07:00:00Z`);
+  await page.getByLabel("Как к вам обращаться").fill("Тестовый гость");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Зарезервировать время" }).click();
+  await expect(page.getByRole("heading", { name: "Осталось подтвердить запись" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Осталось подтвердить запись" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Запись подтверждена!" })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("booking-pending-after-reload.png"), fullPage: true });
+});
+
+test("expired messenger hold offers a clean restart", async ({ page }) => {
+  test.skip(!process.env.VITE_API_URL, "requires synthetic API");
+  await mockPublicApi(page, "expired");
+  await page.goto("/#booking");
+  await page.getByLabel("Процедура").selectOption("synthetic-service");
+  const minimumDate = await page.getByLabel("Дата").getAttribute("min");
+  if (!minimumDate) throw new Error("Missing booking date");
+  const [year, month, day] = minimumDate.split("-").map(Number);
+  const bookingDay = new Date(Date.UTC(year, month - 1, day + 7)).toISOString().slice(0, 10);
+  await page.getByLabel("Дата").fill(bookingDay);
+  await expect(page.getByLabel("Свободное время").getByRole("option", { name: /10:00/ })).toBeAttached();
+  await page.getByLabel("Свободное время").selectOption(`${bookingDay}T07:00:00Z`);
+  await page.getByLabel("Как к вам обращаться").fill("Тестовый гость");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Зарезервировать время" }).click();
+  await expect(page.getByRole("heading", { name: "Время брони истекло" })).toBeVisible({ timeout: 5_000 });
+  await page.screenshot({ path: test.info().outputPath("booking-expired.png"), fullPage: true });
+  await page.getByRole("button", { name: "Выбрать другое время" }).click();
+  await expect(page.getByLabel("Процедура")).toBeVisible();
 });

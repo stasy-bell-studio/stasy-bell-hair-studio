@@ -754,6 +754,24 @@ img {
   text-underline-offset: 3px;
 }
 
+.booking-service-summary {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-control);
+  background: var(--web-mist);
+  color: var(--web-forest);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.booking-date-hint {
+  margin: 6px 0 0;
+}
+
+.retry-button {
+  margin-top: 12px;
+}
+
 .hold-detail {
   color: var(--web-body);
 }

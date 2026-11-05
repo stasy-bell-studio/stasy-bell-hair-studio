@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { API_URL, clockMoscow, formatMoscowNow, requestApi, type Hold, type Service } from "./booking";
+import { API_URL, clearPendingHold, clockMoscow, formatMoscowNow, lastBookableDay, readPendingHold, requestApi, savePendingHold, type Hold, type Service } from "./booking";
 import { priceGroups } from "./prices";
 import masterPhoto from "../../../src/assets/master-photo.png";
 import portfolioOne from "../../../src/assets/portfolio-1.png";
@@ -17,6 +17,9 @@ function Booking() {
   const [services, setServices] = useState<Service[]>([]);
   const [channels, setChannels] = useState({ telegram: false, vk: false });
   const [catalogLoading, setCatalogLoading] = useState(configured);
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [catalogRetry, setCatalogRetry] = useState(0);
+  const [availabilityRevision, setAvailabilityRevision] = useState(0);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [serviceId, setServiceId] = useState("");
   const [day, setDay] = useState(formatMoscowNow());
@@ -28,12 +31,15 @@ function Booking() {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [hold, setHold] = useState<Hold | null>(null);
+  const [hold, setHold] = useState<Hold | null>(() => readPendingHold());
   const [holdStatus, setHoldStatus] = useState("pending_channel");
 
   useEffect(() => {
     if (!configured) return;
     let stale = false;
+    setCatalogLoading(true);
+    setCatalogFailed(false);
+    setError("");
     Promise.all([
       requestApi<{ services: Service[] }>("/public/services"),
       requestApi<{ telegram: boolean; vk: boolean }>("/public/channels"),
@@ -43,10 +49,11 @@ function Booking() {
         setChannels(configuredChannels);
         setChannel(configuredChannels.telegram ? "telegram" : "vk");
       }
-    }).catch((err: Error) => { if (!stale) setError(err.message); })
-      .finally(() => { if (!stale) setCatalogLoading(false); });
+    }).catch((err: Error) => {
+      if (!stale) { setCatalogFailed(true); setError(err.message); }
+    }).finally(() => { if (!stale) setCatalogLoading(false); });
     return () => { stale = true; };
-  }, [configured]);
+  }, [configured, catalogRetry]);
 
   useEffect(() => {
     setSlots([]);
@@ -63,7 +70,7 @@ function Booking() {
       .catch((err: Error) => { if (!stale) setError(err.message); })
       .finally(() => { if (!stale) setAvailabilityLoading(false); });
     return () => { stale = true; };
-  }, [serviceId, day, configured]);
+  }, [serviceId, day, configured, availabilityRevision]);
 
   useEffect(() => {
     if (!hold || !configured || holdStatus !== "pending_channel") return;
@@ -75,7 +82,10 @@ function Booking() {
             method: "POST", body: JSON.stringify({ hold_secret: hold.hold_secret }),
           },
         );
-        if (active) setHoldStatus(result.status);
+        if (active) {
+          setHoldStatus(result.status);
+          if (result.status !== "pending_channel") clearPendingHold();
+        }
       } catch {
         // Network errors never imply confirmation.
       }
@@ -98,10 +108,16 @@ function Booking() {
           personal_data_consent: true,
         }),
       });
+      savePendingHold(response);
       setHold(response);
       setHoldStatus("pending_channel");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать заявку.");
+      const message = err instanceof Error ? err.message : "Не удалось создать заявку.";
+      setError(message);
+      if (message.includes("Это время уже занято")) {
+        setSlot("");
+        setAvailabilityRevision((current) => current + 1);
+      }
     } finally {
       setBusy(false);
     }
@@ -116,13 +132,30 @@ function Booking() {
         method: "POST",
         body: JSON.stringify({ hold_secret: hold.hold_secret }),
       });
+      savePendingHold(response);
       setHold(response);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось обновить код.");
+      const message = err instanceof Error ? err.message : "Не удалось обновить код.";
+      setError(message);
+      if (message.includes("истекли")) {
+        clearPendingHold();
+        setHoldStatus("expired");
+      }
     } finally {
       setBusy(false);
     }
   }
+
+  function restartBooking() {
+    clearPendingHold();
+    setHold(null);
+    setHoldStatus("pending_channel");
+    setSlot("");
+    setError("");
+    setAvailabilityRevision((current) => current + 1);
+  }
+
+  const selectedService = services.find((item) => item.id === serviceId);
 
   return (
     <section className="booking-section section" id="booking">
@@ -139,14 +172,15 @@ function Booking() {
           <p className="fineprint">До подтверждения в мессенджере время только временно зарезервировано. Бронь не равна подтверждённой записи.</p>
         </div>
         <div className="booking-form">
-          {!configured && (
+          {(!configured || catalogFailed) && (
             <div className="availability-note" role="status">
-              <strong>Онлайн-запись готовится к запуску.</strong>
-              <p>Пока можно написать мастеру напрямую. Мы не выдаём неподключённую форму за работающую.</p>
+              <strong>{!configured ? "Онлайн-запись готовится к запуску." : "Система записи временно недоступна."}</strong>
+              <p>{!configured ? "Пока можно написать мастеру напрямую. Мы не выдаём неподключённую форму за работающую." : "Не удалось получить услуги и доступные каналы. Можно повторить загрузку или написать мастеру."}</p>
               <p><a href={contactTelegram} target="_blank" rel="noreferrer">Написать в Telegram</a> · <a href={contactVK} target="_blank" rel="noreferrer">Написать во VK</a></p>
+              {catalogFailed && <button className="button secondary wide retry-button" type="button" onClick={() => setCatalogRetry((current) => current + 1)} disabled={catalogLoading}>{catalogLoading ? "Загружаем…" : "Повторить загрузку"}</button>}
             </div>
           )}
-          {configured && !hold && (
+          {configured && !hold && !catalogFailed && (
             <>
               <h3>Выбрать время</h3>
               <label className="field-label" htmlFor="service">Процедура</label>
@@ -160,9 +194,14 @@ function Booking() {
                   </option>
                 ))}
               </select>
+              {selectedService && <p className="booking-service-summary" role="status">
+                Длительность: {selectedService.duration_minutes} мин
+                {selectedService.price_kopecks != null && <> · Цена по записи: {(selectedService.price_kopecks / 100).toLocaleString("ru-RU")} ₽</>}
+              </p>}
               <label className="field-label" htmlFor="booking-day">Дата</label>
-              <input id="booking-day" type="date" min={formatMoscowNow()} value={day} required
-                onChange={(e) => setDay(e.target.value)} />
+              <input id="booking-day" type="date" min={formatMoscowNow()} max={lastBookableDay()} value={day} required
+                onChange={(e) => { setDay(e.target.value); setError(""); }} />
+              <p className="fineprint booking-date-hint">Доступны даты на ближайшие 30 дней по времени Санкт-Петербурга.</p>
               <label className="field-label" htmlFor="booking-time">Свободное время</label>
               <select id="booking-time" value={slot} disabled={!serviceId || availabilityLoading || slots.length === 0}
                 onChange={(e) => setSlot(e.target.value)} required>
@@ -200,7 +239,7 @@ function Booking() {
               <span className="eyebrow">ВРЕМЕННАЯ БРОНЬ</span>
               <h3>{holdStatus === "confirmed" ? "Запись подтверждена!" :
                 holdStatus === "pending_channel" ? "Осталось подтвердить запись" :
-                "Бронь завершена"}</h3>
+                holdStatus === "expired" ? "Время брони истекло" : "Бронь завершена"}</h3>
               {holdStatus === "confirmed" ? <p>Подтверждение получено. Ждём вас!</p> :
                 holdStatus === "pending_channel" ?
                 <p>Интервал удерживается до <strong>{clockMoscow(hold.hold_until)}</strong>.</p> :
@@ -218,7 +257,11 @@ function Booking() {
                 <p className="fineprint">Код: <code>{hold.channel_confirmation_code}</code>. Не передавайте его посторонним.</p>}
               {holdStatus === "pending_channel" &&
                 <button className="button secondary wide" type="button" onClick={reissue} disabled={busy}>
-                  Обновить код (если истёк)
+                  Получить новый код
+                </button>}
+              {holdStatus !== "pending_channel" &&
+                <button className="button secondary wide" type="button" onClick={restartBooking}>
+                  Выбрать другое время
                 </button>}
             </div>
           )}
