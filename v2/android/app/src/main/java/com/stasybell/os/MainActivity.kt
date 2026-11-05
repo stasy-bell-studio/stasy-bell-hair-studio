@@ -137,7 +137,8 @@ fun MasterApp() {
     }
 
     LaunchedEffect(Unit) {
-        val allowed = !biometricEnabled || (activity != null && confirmFingerprint(activity))
+        val allowed = !sessionStore.hasSession() || !biometricEnabled ||
+            (activity != null && confirmFingerprint(activity))
         if (allowed) {
             token = api.restoreSession()
         }

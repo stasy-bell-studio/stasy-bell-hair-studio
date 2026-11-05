@@ -135,6 +135,13 @@ class CloudAcceptanceTest {
         enter("Пароль", "synthetic_password_only_123")
         click("Войти")
         waitFor("Ближайшие визиты")
+        // Activity recreation forces a fresh composable; only Keystore-backed
+        // refresh (not an in-memory access token) can restore the owner screen.
+        compose.activityRule.scenario.recreate()
+        waitFor("Ближайшие визиты")
+        check(compose.onAllNodesWithText("Личный кабинет мастера").fetchSemanticsNodes().isEmpty()) {
+            "Owner must be restored without asking for a password"
+        }
         screenshot("02-today")
 
         click("Ещё")
