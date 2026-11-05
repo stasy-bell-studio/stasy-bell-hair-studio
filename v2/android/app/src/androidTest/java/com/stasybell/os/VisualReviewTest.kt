@@ -70,9 +70,11 @@ class VisualReviewTest {
         val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
         val firstDay = ((today.dayOfMonth - 1) / 7) * 7 + 1
         val lastDay = minOf(firstDay + 6, YearMonth.from(today).lengthOfMonth())
-        compose.onNodeWithContentDescription(
+        check(compose.onAllNodesWithContentDescription(
             "$firstDay–$lastDay: поступления 12 000 ₽, расходы 1 800 ₽",
-        ).assertExists()
+        ).fetchSemanticsNodes().isNotEmpty()) {
+            "Finance screenshot must contain both seeded weekly amounts."
+        }
         capture("review-03-finance")
     }
 }

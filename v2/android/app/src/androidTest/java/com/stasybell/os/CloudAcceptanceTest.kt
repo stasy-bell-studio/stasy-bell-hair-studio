@@ -3,7 +3,6 @@ package com.stasybell.os
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.click
@@ -275,9 +274,11 @@ class CloudAcceptanceTest {
         click("Записать фактическую операцию")
         waitFor("Расходы: 300,25 ₽")
         waitFor("Итог: 2 099,75 ₽")
-        compose.onNodeWithContentDescription(
+        check(compose.onAllNodesWithContentDescription(
             "${currentWeekRange()}: поступления 2 400 ₽, расходы 300,25 ₽",
-        ).assertExists()
+        ).fetchSemanticsNodes().isNotEmpty()) {
+            "Weekly chart must show the saved income and expense in the current week."
+        }
         compose.onNodeWithContentDescription("Поступления: 2 400 ₽").performScrollTo()
         screenshot("10-finance")
         waitFor("Расход · Материалы")
@@ -309,9 +310,11 @@ class CloudAcceptanceTest {
         click("Подтвердить сторно")
         waitFor("Расходы: 0 ₽")
         waitFor("Итог: 2 400 ₽")
-        compose.onNodeWithContentDescription(
+        check(compose.onAllNodesWithContentDescription(
             "${currentWeekRange()}: поступления 2 400 ₽, расходы 0 ₽",
-        ).assertExists()
+        ).fetchSemanticsNodes().isNotEmpty()) {
+            "Reversing the expense must reduce the same week's chart amount to zero."
+        }
         waitFor("Сторно · Расход · Материалы")
         waitFor("Причина: Проверка тестового сторно")
         waitFor("Причина: Сверка тестового месяца")
