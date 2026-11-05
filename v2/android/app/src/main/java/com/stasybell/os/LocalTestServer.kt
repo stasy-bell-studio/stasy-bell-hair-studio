@@ -1,7 +1,6 @@
 package com.stasybell.os
 
 import android.content.Context
-import java.net.URI
 
 /**
  * Only DEBUG APKs may use an owner-selected Mac LAN IP. Never permits public
