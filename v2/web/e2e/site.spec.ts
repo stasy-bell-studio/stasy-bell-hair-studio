@@ -144,7 +144,7 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   await timeField.selectOption(`${bookingDay}T07:00:00Z`);
   await page.getByLabel("Как к вам обращаться").fill("Тестовый гость");
   await expect(page.getByRole("button", { name: "Зарезервировать время" })).toBeDisabled();
-  await expect(page.getByRole("link", { name: "Политика обработки персональных данных" })).toBeVisible();
+  await expect(page.locator(".consent-policy").getByRole("link", { name: "Политика обработки персональных данных" })).toBeVisible();
   await page.getByLabel(/Даю отдельное согласие/).check();
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = "auto";
