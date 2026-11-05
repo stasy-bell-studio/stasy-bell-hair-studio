@@ -4,6 +4,8 @@ const apiOrigin = "https://api.stasybell.test";
 
 async function mockPublicApi(page: Page, finalStatus: "pending_channel" | "confirmed" | "expired" = "confirmed") {
   let bookingBody: Record<string, unknown> | undefined;
+  // Confirmation is released explicitly after visual evidence has been captured.
+  let confirmationReleased = finalStatus !== "confirmed";
 
   await page.route(`${apiOrigin}/**`, async (route) => {
     const url = new URL(route.request().url());
@@ -71,15 +73,19 @@ async function mockPublicApi(page: Page, finalStatus: "pending_channel" | "confi
     }
 
     if (url.pathname === "/public/holds/synthetic-hold/status") {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      await route.fulfill({ json: { status: finalStatus } });
+      await route.fulfill({
+        json: { status: confirmationReleased ? finalStatus : "pending_channel" },
+      });
       return;
     }
 
     await route.fulfill({ status: 404, json: { detail: "Unknown synthetic route" } });
   });
 
-  return { getBookingBody: () => bookingBody };
+  return {
+    getBookingBody: () => bookingBody,
+    releaseConfirmation: () => { confirmationReleased = true; },
+  };
 }
 
 test("Sage landing page stays within the approved responsive widths", async ({ page }, testInfo) => {
@@ -148,6 +154,8 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   await page.screenshot({ path: test.info().outputPath("booking-pending-mobile.png"), fullPage: true });
   await page.setViewportSize({ width: 1280, height: 720 });
   await expect(page.getByText("Синтетический тест подтверждения записи.")).toBeVisible();
+  api.releaseConfirmation();
+  await page.reload();
   await expect(page.getByRole("heading", { name: "Запись подтверждена!" })).toBeVisible({ timeout: 5_000 });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: test.info().outputPath("booking-confirmed.png"), fullPage: true });
