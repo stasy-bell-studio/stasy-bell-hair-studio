@@ -358,12 +358,12 @@ fun MasterApp() {
                     }
                     "+ Запись" -> {
                         ManualBookingForm(
-                            services = services, busy = busy,
-                            onCreate = { name, service, day, clock ->
+                            services = services, clients = clients, busy = busy,
+                            onCreate = { name, existingClientId, service, day, clock ->
                                 scope.launch {
                                     busy = true
                                     try {
-                                        api.manualBooking(activeToken, name, service, day, clock)
+                                        api.manualBooking(activeToken, name, existingClientId, service, day, clock)
                                         error = ""
                                         page = "Календарь"
                                         refresh(activeToken)
@@ -517,10 +517,12 @@ fun ClientsPanel(
 
 @Composable
 fun ManualBookingForm(
-    services: List<ServiceItem>, busy: Boolean,
-    onCreate: (String, String, String, String) -> Unit,
+    services: List<ServiceItem>, clients: List<ClientItem>, busy: Boolean,
+    onCreate: (String, String?, String, String, String) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
+    var existingClientId by remember { mutableStateOf<String?>(null) }
+    var clientPickerOpen by remember { mutableStateOf(false) }
     var date by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).format(studioDateFormat)) }
     var clock by remember { mutableStateOf("10:00") }
     var selected by remember { mutableStateOf<ServiceItem?>(null) }
@@ -530,9 +532,37 @@ fun ManualBookingForm(
         Text("Ручная запись", style = MaterialTheme.typography.titleLarge)
         Text("Подтверждение по телефону и через бота не требуется.")
         OutlinedTextField(
-            value = name, onValueChange = { name = it }, label = { Text("Имя клиента") },
-            modifier = Modifier.fillMaxWidth(),
+            value = name, onValueChange = { name = it; existingClientId = null },
+            label = { Text("Имя клиента") }, modifier = Modifier.fillMaxWidth(),
         )
+        TextButton(onClick = { clientPickerOpen = true }) {
+            Text(if (existingClientId == null) "Выбрать существующего клиента"
+                else "Существующий клиент выбран")
+        }
+        DropdownMenu(expanded = clientPickerOpen,
+            onDismissRequest = { clientPickerOpen = false }) {
+            val matches = clients.filter {
+                name.isBlank() || it.name.contains(name.trim(), ignoreCase = true)
+            }.take(30)
+            matches.forEach { client ->
+                DropdownMenuItem(
+                    text = { Text(client.name + (client.phone?.let { " · $it" } ?: "")) },
+                    onClick = {
+                        name = client.name
+                        existingClientId = client.id
+                        clientPickerOpen = false
+                    },
+                )
+            }
+            if (existingClientId != null) {
+                DropdownMenuItem(text = { Text("Создать нового клиента") },
+                    onClick = { existingClientId = null; clientPickerOpen = false })
+            }
+            if (matches.isEmpty()) {
+                DropdownMenuItem(text = { Text("Совпадений нет — создайте нового клиента") },
+                    onClick = { clientPickerOpen = false })
+            }
+        }
         StasyButton(onClick = { expanded = true }) {
             Text(selected?.let { "${it.name} · ${it.variant ?: ""}" } ?: "Выбрать услугу")
         }
@@ -555,7 +585,7 @@ fun ManualBookingForm(
         StasyButton(
             enabled = !busy && name.isNotBlank() && selected != null && parseStudioDate(date) != null,
             onClick = { selected?.let { service -> parseStudioDate(date)?.let { day ->
-                onCreate(name.trim(), service.id, day.toString(), clock)
+                onCreate(name.trim(), existingClientId, service.id, day.toString(), clock)
             } } },
         ) { Text("Создать подтверждённую запись") }
     }
