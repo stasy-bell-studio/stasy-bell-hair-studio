@@ -112,12 +112,17 @@ def issue_token(db: Session, entry: CalendarEntry, channel: str, now: datetime) 
     return raw_token
 
 
-def response_for_hold(entry: CalendarEntry, channel: str, token: str, access: str) -> dict:
+def response_for_hold(
+    entry: CalendarEntry, channel: str, token: str, access: str, service: Service,
+) -> dict:
     result = {
         "id": entry.id, "status": entry.status, "channel": channel,
         "hold_until": entry.hold_until, "confirmation_token_expires_at":
         min(datetime.now(UTC) + timedelta(minutes=TOKEN_MINUTES), entry.hold_until),
         "channel_confirmation_code": token, "hold_secret": access,
+        "starts_at": entry.starts_at,
+        "service_name": service.name,
+        "service_variant": service.variant,
     }
     if channel == "telegram":
         username = os.environ.get("TELEGRAM_BOT_USERNAME", "").strip("@")
@@ -144,6 +149,30 @@ def public_services(db: Session = Depends(get_db)):
     } for r in rows]}
 
 
+def available_starts_for_day(parsed, service, windows, busy, now):
+    """One source of truth for the public day and 30-day calendar endpoints."""
+    starts = []
+    occupied_duration = timedelta(
+        minutes=service.duration_minutes + service.buffer_minutes
+    )
+    for window in windows:
+        cur = datetime.combine(parsed, window.starts_at, STUDIO_TZ)
+        limit = datetime.combine(parsed, window.ends_at, STUDIO_TZ)
+        while cur + occupied_duration <= limit:
+            if cur > now and not any(
+                entry.starts_at < cur + occupied_duration
+                and entry.occupied_until > cur
+                and (
+                    entry.status != "pending_channel"
+                    or (entry.hold_until and entry.hold_until > now)
+                )
+                for entry in busy
+            ):
+                starts.append(cur.isoformat())
+            cur += timedelta(minutes=15)
+    return starts
+
+
 @router.get("/public/availability")
 def public_availability(
     request: Request, day: str, service_id: UUID, db: Session = Depends(get_db),
@@ -168,19 +197,44 @@ def public_availability(
         CalendarEntry.deleted_at.is_(None), CalendarEntry.status.in_(ACTIVE),
         CalendarEntry.starts_at < day_end, CalendarEntry.occupied_until > day_start,
     )).all()
-    starts = []
-    for window in windows:
-        cur = datetime.combine(parsed, window.starts_at, STUDIO_TZ)
-        limit = datetime.combine(parsed, window.ends_at, STUDIO_TZ)
-        occupied_duration = timedelta(minutes=service.duration_minutes + service.buffer_minutes)
-        while cur + occupied_duration <= limit:
-            if cur > now and not any(e.starts_at < cur + occupied_duration
-                and e.occupied_until > cur
-                and (e.status != "pending_channel" or (e.hold_until and e.hold_until > now))
-                for e in busy):
-                starts.append(cur.isoformat())
-            cur += timedelta(minutes=15)
+    starts = available_starts_for_day(parsed, service, windows, busy, now)
     return {"day": parsed.isoformat(), "service_id": service_id, "starts_at": starts}
+
+
+@router.get("/public/available-days")
+def public_available_days(
+    request: Request, service_id: UUID, db: Session = Depends(get_db),
+):
+    """Only real open days and remaining 15-minute start options, no client details."""
+    require_public_enabled()
+    rate_limit(request, "available_days", max_events=12, seconds=60)
+    service = db.get(Service, service_id)
+    if not service or not service.active or not service.duration_minutes:
+        raise HTTPException(status_code=404, detail="Service unavailable")
+
+    now = datetime.now(UTC)
+    today = now.astimezone(STUDIO_TZ).date()
+    end_day = today + timedelta(days=30)
+    first_start, _ = local_day_limits(today)
+    _, last_end = local_day_limits(end_day - timedelta(days=1))
+    windows = db.scalars(select(WorkingWindow).where(
+        WorkingWindow.day >= today, WorkingWindow.day < end_day,
+    ).order_by(WorkingWindow.day, WorkingWindow.starts_at)).all()
+    busy = db.scalars(select(CalendarEntry).where(
+        CalendarEntry.deleted_at.is_(None), CalendarEntry.status.in_(ACTIVE),
+        CalendarEntry.starts_at < last_end, CalendarEntry.occupied_until > first_start,
+    )).all()
+
+    available = []
+    for offset in range(30):
+        parsed = today + timedelta(days=offset)
+        day_windows = [window for window in windows if window.day == parsed]
+        if not day_windows:
+            continue
+        starts = available_starts_for_day(parsed, service, day_windows, busy, now)
+        if starts:
+            available.append({"day": parsed.isoformat(), "slot_count": len(starts)})
+    return {"days": available, "timezone": "Europe/Moscow"}
 
 
 @router.post("/public/holds", status_code=201)
@@ -229,7 +283,7 @@ def create_hold(
         if getattr(exc.orig, "sqlstate", None) == "23P01":
             raise HTTPException(status_code=409, detail="Time interval already occupied") from exc
         raise
-    return response_for_hold(entry, data.channel, token, access)
+    return response_for_hold(entry, data.channel, token, access, service)
 
 
 @router.post("/public/holds/{entry_id}/reissue")
@@ -258,7 +312,8 @@ def reissue(
     client = db.get(Client, entry.client_id)
     token = issue_token(db, entry, client.preferred_channel, now)
     db.commit()
-    return response_for_hold(entry, client.preferred_channel, token, data.hold_secret)
+    service = db.get(Service, entry.service_id)
+    return response_for_hold(entry, client.preferred_channel, token, data.hold_secret, service)
 
 
 def confirm_token(db: Session, raw: str, channel: str, provider_user_id: str) -> dict:

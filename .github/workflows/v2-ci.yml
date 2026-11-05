@@ -7,7 +7,7 @@ on:
       - 'v2/**'
       - '.github/workflows/v2-ci.yml'
   pull_request:
-    branches: [main]
+    branches: [main, develop/stasy-bell-os-v2]
     paths:
       - 'v2/**'
       - '.github/workflows/v2-ci.yml'
@@ -108,7 +108,7 @@ jobs:
 
   web-v2:
     name: V2 website build and catalog tests (no deployment)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -119,7 +119,34 @@ jobs:
         run: npm ci
       - name: Type-check V2 only
         run: npx tsc --noEmit --project v2/web/tsconfig.json
-      - name: Test prices against live-site catalog
-        run: npx vitest run v2/web/src/prices.test.ts --config v2/web/vite.config.ts
-      - name: Build separate V2 site (no publish)
+      - name: Test prices, booking safety and privacy gate
+        run: npx vitest run v2/web/src/prices.test.ts v2/web/src/booking.test.ts v2/web/src/legal.test.ts --config v2/web/vite.config.ts
+      - name: Type-check browser tests
+        run: npx tsc --noEmit --project v2/web/tsconfig.e2e.json
+      - name: Build separate V2 site with booking disabled (no publish)
         run: npx vite build --config v2/web/vite.config.ts
+      - name: Install Chromium for responsive UI tests
+        run: npx playwright install --with-deps chromium
+      - name: Confirm disabled booking state offers direct contacts
+        run: npx playwright test --config v2/web/playwright.config.ts --grep "offline booking"
+      - name: Build V2 site for synthetic booking tests (no publish)
+        env:
+          VITE_API_URL: https://api.stasybell.test
+          VITE_PRIVACY_APPROVED: '1'
+          VITE_PRIVACY_OPERATOR: 'Синтетический оператор (только CI)'
+          VITE_PRIVACY_OPERATOR_ADDRESS: 'Синтетический адрес (только CI)'
+          VITE_PRIVACY_CONTACT: privacy@example.invalid
+          VITE_PRIVACY_RETENTION: 'Синтетический срок хранения только для CI'
+        run: npx vite build --config v2/web/vite.config.ts
+      - name: Test booking confirmation and capture responsive pages
+        env:
+          VITE_API_URL: https://api.stasybell.test
+        run: npm run test:web:e2e
+      - name: Upload private responsive screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stasy-bell-v2-web-responsive
+          path: v2/web/test-results/**/*.png
+          if-no-files-found: warn
+          retention-days: 7
