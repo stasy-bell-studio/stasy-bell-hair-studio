@@ -6,7 +6,6 @@ mkdir -p "$EVIDENCE/screenshots"
 collect() {
     adb logcat -d -v threadtime > "$EVIDENCE/logcat.txt" || true
     adb pull /sdcard/acceptance/. "$EVIDENCE/screenshots/" || true
-    adb pull /sdcard/Android/data/com.stasybell.os/files/visual-review/. "$EVIDENCE/screenshots/" || true
     adb shell wm size reset || true
     adb shell wm density reset || true
     adb shell settings put system font_scale 1.0 || true
@@ -29,3 +28,8 @@ fi
 python "$ROOT/v2/android/scripts/seed-visual-review.py" | tee "$EVIDENCE/visual-fixtures.txt"
 timeout 12m gradle :app:connectedDebugAndroidTest --no-daemon -PstasyApiBaseUrl=http://127.0.0.1:8000/ \
     -Pandroid.testInstrumentationRunnerArguments.class=com.stasybell.os.VisualReviewTest
+collect
+trap - EXIT
+for image in review-01-home review-02-calendar review-03-finance; do
+    test -s "$EVIDENCE/screenshots/$image.png"
+done

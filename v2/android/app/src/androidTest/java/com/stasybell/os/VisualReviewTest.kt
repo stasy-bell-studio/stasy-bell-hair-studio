@@ -1,6 +1,7 @@
 package com.stasybell.os
 
 import android.graphics.Bitmap
+import android.os.ParcelFileDescriptor
 import androidx.compose.ui.graphics.asAndroidBitmap
 import java.io.File
 import androidx.compose.ui.test.*
@@ -31,6 +32,14 @@ class VisualReviewTest {
         val directory = File(context.getExternalFilesDir(null), "visual-review").apply { mkdirs() }
         File(directory, "$name.png").outputStream().use {
             check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+        }
+        // Connected tests uninstall the app at teardown, removing its scoped files.
+        // Preserve the rendered image in the shell-owned evidence directory first.
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        listOf("mkdir -p /sdcard/acceptance",
+            "cp ${directory.absolutePath}/$name.png /sdcard/acceptance/$name.png").forEach { command ->
+            ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))
+                .use { it.readBytes() }
         }
     }
 
