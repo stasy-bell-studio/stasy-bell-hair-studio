@@ -33,6 +33,7 @@ function Booking() {
   const [error, setError] = useState("");
   const [hold, setHold] = useState<Hold | null>(() => readPendingHold());
   const [holdStatus, setHoldStatus] = useState("pending_channel");
+  const [statusCheckError, setStatusCheckError] = useState(false);
 
   useEffect(() => {
     if (!configured) return;
@@ -83,11 +84,21 @@ function Booking() {
           },
         );
         if (active) {
+          setStatusCheckError(false);
           setHoldStatus(result.status);
           if (result.status !== "pending_channel") clearPendingHold();
         }
-      } catch {
-        // Network errors never imply confirmation.
+      } catch (err) {
+        if (!active) return;
+        if (err instanceof Error && (err.message.includes("Заявка не найдена") ||
+            err.message.includes("истекли"))) {
+          clearPendingHold();
+          setHoldStatus("expired");
+          setStatusCheckError(false);
+        } else {
+          // Failed verification never implies a confirmed booking.
+          setStatusCheckError(true);
+        }
       }
     };
     const timer = window.setInterval(poll, 15000);
@@ -110,6 +121,7 @@ function Booking() {
       });
       savePendingHold(response);
       setHold(response);
+      setStatusCheckError(false);
       setHoldStatus("pending_channel");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось создать заявку.";
@@ -149,6 +161,7 @@ function Booking() {
   function restartBooking() {
     clearPendingHold();
     setHold(null);
+    setStatusCheckError(false);
     setHoldStatus("pending_channel");
     setSlot("");
     setError("");
@@ -246,6 +259,8 @@ function Booking() {
                 <p>Выберите другое свободное время.</p>}
               {holdStatus === "pending_channel" &&
                 <p>Код действует до <strong>{clockMoscow(hold.confirmation_token_expires_at)}</strong>.</p>}
+              {holdStatus === "pending_channel" && statusCheckError &&
+                <p className="form-error" role="alert">Не удалось проверить текущий статус. Бронь пока не считается подтверждённой. Проверка продолжится автоматически.</p>}
               {holdStatus === "pending_channel" && hold.channel_link && (
                 <a className="button primary wide" href={hold.channel_link} target="_blank" rel="noreferrer">
                   Открыть {hold.channel === "telegram" ? "Telegram-бота" : "сообщество VK"}

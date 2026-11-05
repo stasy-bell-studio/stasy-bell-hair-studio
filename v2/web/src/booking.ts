@@ -37,6 +37,7 @@ export async function requestApi<T>(path: string, init?: RequestInit): Promise<T
   if (!response.ok) {
     if (response.status === 503) throw new Error("Онлайн-запись пока недоступна.");
     if (response.status === 410) throw new Error("Время брони или код подтверждения истекли.");
+    if (response.status === 404) throw new Error("Заявка не найдена. Выберите свободное время заново.");
     if (response.status === 422) throw new Error("Данные записи устарели. Проверьте дату и время.");
     if (response.status === 409) throw new Error("Это время уже занято. Выберите другое.");
     if (response.status === 429) throw new Error("Слишком много запросов. Попробуйте позже.");
