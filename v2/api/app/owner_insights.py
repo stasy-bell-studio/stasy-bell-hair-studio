@@ -4,7 +4,6 @@ All monetary figures are actual *manually entered* transactions. Completing an
 appointment never creates revenue; historical quote is shown separately.
 """
 from uuid import UUID
-from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -103,7 +102,8 @@ def client_history(
 
 @router.get("/reports/month")
 def monthly_owner_report(
-    year: int, month: int,
+    year: int = Query(ge=2000, le=2100),
+    month: int = Query(ge=1, le=12),
     db: Session = Depends(get_db),
     owner: MasterAccount = Depends(require_owner),
 ):
