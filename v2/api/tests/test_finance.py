@@ -104,4 +104,7 @@ def test_minimal_material_stock_and_history(api, owner_token):
     assert info[0]["stock_milliunits"] == 100000
     history = api.get(f"/owner/materials/{ident}/movements", headers=headers)
     assert len(history.json()["movements"]) == 2
+    assert [(row["change_milliunits"], row["reason"])
+            for row in history.json()["movements"]] == [
+                (125000, "Test purchase"), (-25000, "Test usage")]
     assert api.get("/owner/materials").status_code == 401

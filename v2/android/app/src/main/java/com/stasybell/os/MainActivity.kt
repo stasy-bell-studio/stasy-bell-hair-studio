@@ -3,7 +3,8 @@ package com.stasybell.os
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.horizontalScroll
+import androidx.core.view.WindowCompat
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,25 +13,52 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
@@ -38,7 +66,8 @@ import java.time.ZoneId
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { MasterApp() } }
+        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
+        setContent { StasyTheme { MasterApp() } }
     }
 }
 
@@ -55,16 +84,38 @@ fun MasterApp() {
     var services by remember { mutableStateOf<List<ServiceItem>>(emptyList()) }
     var clients by remember { mutableStateOf<List<ClientItem>>(emptyList()) }
     var visits by remember { mutableStateOf<List<VisitItem>>(emptyList()) }
+    var cash by remember { mutableStateOf<CashSummary?>(null) }
+    var dailyIncome by remember { mutableStateOf<Long?>(null) }
+    var workingWindows by remember { mutableStateOf<List<WorkingTime>?>(null) }
     val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
+    val view = LocalView.current
+    SideEffect {
+        val activity = view.context as? android.app.Activity
+        if (activity != null) WindowCompat.getInsetsController(activity.window, view)
+            .isAppearanceLightStatusBars = token == null || page !in listOf("Сегодня", "Календарь", "Финансы")
+    }
 
     fun refresh(currentToken: String) {
         scope.launch {
             busy = true
+            cash = null
+            dailyIncome = null
+            workingWindows = null
             try {
                 services = api.services(currentToken)
                 clients = api.clients(currentToken)
                 visits = api.visits(currentToken, today)
                 error = ""
+                cash = try { api.financeSummary(currentToken, today.year, today.monthValue) }
+                    catch (_: Exception) { null }
+                dailyIncome = try {
+                    api.financeTransactions(currentToken, today.year, today.monthValue)
+                        .filter { it.kind == "income" && java.time.OffsetDateTime.parse(it.occurredAt)
+                            .atZoneSameInstant(ZoneId.of("Europe/Moscow")).toLocalDate() == today }
+                        .sumOf { if (it.correctionOfId != null) -it.amountKopecks else it.amountKopecks }
+                } catch (_: Exception) { null }
+                workingWindows = try { api.schedule(currentToken, today.toString()) }
+                    catch (_: Exception) { null }
             } catch (ex: Exception) {
                 error = "Не удалось обновить данные: ${ex.message}"
             } finally {
@@ -79,11 +130,13 @@ fun MasterApp() {
 
     if (token == null) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier.fillMaxSize().background(StasyColors.Canvas).verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Stasy Bell OS", style = MaterialTheme.typography.headlineMedium)
-            Text("Личный кабинет мастера")
+            Text("STASY BELL", style = MaterialTheme.typography.titleLarge, color = StasyColors.Primary)
+            Spacer(Modifier.height(24.dp))
+            Text("Вход", style = MaterialTheme.typography.headlineSmall)
+            Text("Личный кабинет мастера", color = StasyColors.Body)
             Spacer(Modifier.height(18.dp))
             OutlinedTextField(
                 value = user, onValueChange = { user = it },
@@ -96,7 +149,7 @@ fun MasterApp() {
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
             )
-            Button(
+            StasyButton(
                 onClick = {
                     scope.launch {
                         busy = true
@@ -111,51 +164,97 @@ fun MasterApp() {
                         }
                     }
                 }, enabled = !busy && user.isNotBlank() && password.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
             ) { Text("Войти") }
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
             Text("Учётные данные не сохраняются на устройстве.")
         }
     } else {
         val activeToken = token ?: return
-        val tabs = listOf("Сегодня", "Календарь", "График", "Клиенты", "Услуги", "+ Запись", "Финансы", "Материалы")
+        val tabs = listOf("Сегодня", "Календарь", "Клиенты", "Финансы", "Ещё")
+        val compactLabels = listOf("День", "Кал.", "Кл.", "Фин.", "Ещё")
+        val useCompactLabels = LocalDensity.current.fontScale >= 1.3f
+        val pageScrollState = rememberScrollState()
+        LaunchedEffect(page) { pageScrollState.scrollTo(0) }
+        val icons = listOf(Icons.Default.Home, Icons.Default.DateRange, Icons.Default.Person,
+            Icons.Default.AccountBox, Icons.Default.MoreVert)
+        val morePages = listOf("+ Запись", "График", "Услуги", "Материалы", "Отчёты", "Настройки")
+        val forestPage = page in listOf("Сегодня", "Календарь", "Финансы")
         Scaffold(
+            topBar = {
+                if (forestPage) ForestSurface(Modifier.background(StasyColors.Forest).statusBarsPadding()) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (page == "Сегодня") "Stasy Bell OS" else page,
+                            style = MaterialTheme.typography.titleMedium, color = Color.White,
+                            modifier = Modifier.weight(1f))
+                        IconButton(onClick = { refresh(activeToken) }, enabled = !busy) {
+                            Icon(Icons.Default.Refresh, "Обновить", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = { token = null; cash = null; page = "Сегодня" }) {
+                            Icon(Icons.Default.ExitToApp, "Выход", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            },
+            floatingActionButton = {
+                if (page in listOf("Сегодня", "Календарь")) FloatingActionButton(
+                    onClick = { page = "+ Запись" }, containerColor = StasyColors.PrimaryDeep,
+                    contentColor = Color.White, shape = androidx.compose.foundation.shape.CircleShape,
+                    modifier = Modifier.size(52.dp),
+                ) { Icon(Icons.Default.Add, "+ Запись") }
+            },
             bottomBar = {
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    tabs.forEach { tab ->
-                        Button(onClick = { page = tab }, enabled = page != tab) { Text(tab) }
+                NavigationBar(containerColor = StasyColors.Surface, tonalElevation = 0.dp) {
+                    tabs.forEachIndexed { index, tab ->
+                        NavigationBarItem(
+                            selected = page == tab || (tab == "Ещё" && page in morePages),
+                            onClick = { page = tab },
+                            modifier = Modifier.semantics { contentDescription = tab },
+                            icon = { Icon(icons[index], contentDescription = null, modifier = Modifier.size(20.dp)) },
+                            label = { Text(if (useCompactLabels) compactLabels[index] else tab, fontSize = 10.sp) },
+                            alwaysShowLabel = true,
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = StasyColors.Primary,
+                                selectedTextColor = StasyColors.Primary,
+                                indicatorColor = StasyColors.MintSoft,
+                                unselectedIconColor = StasyColors.Body,
+                                unselectedTextColor = StasyColors.Body,
+                            ),
+                        )
                     }
                 }
             },
         ) { padding ->
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxSize().padding(padding)
+                    .background(StasyColors.Canvas)
+                    .verticalScroll(pageScrollState)
+                    .padding(horizontal = if (page in listOf("Сегодня", "Финансы")) 0.dp else if (forestPage) 12.dp else 16.dp,
+                        vertical = if (page in listOf("Сегодня", "Финансы")) 0.dp else 12.dp),
             ) {
-                Text("Stasy Bell OS", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { refresh(activeToken) }, enabled = !busy) {
-                        Text("Обновить")
+                if (!forestPage) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Stasy Bell OS", style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f).padding(top = 12.dp))
+                    IconButton(onClick = { refresh(activeToken) }, enabled = !busy) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                     }
-                    Button(onClick = { token = null; page = "Сегодня" }) {
-                        Text("Выход")
+                    IconButton(onClick = { token = null; cash = null; page = "Сегодня" }) {
+                        Icon(Icons.Default.ExitToApp, contentDescription = "Выход")
                     }
                 }
                 if (busy) Text("Загрузка…")
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(12.dp))
+                }
+                if (forestPage && busy) Text("Загрузка…", modifier = Modifier.padding(horizontal = 16.dp))
+                if (forestPage && error.isNotBlank()) Text(error, color = StasyColors.Error,
+                    modifier = Modifier.padding(16.dp))
+                MaterialTheme(typography = if (forestPage) operationalTypography else MaterialTheme.typography) {
                 when (page) {
-                    "Сегодня" -> {
-                        Text("Ближайшие визиты", style = MaterialTheme.typography.titleLarge)
-                        if (visits.isEmpty()) Text("Нет записей на ближайшую неделю")
-                        visits.filter { it.localTime.startsWith(today.format(
-                            java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
-                        )) }.forEach { visit ->
-                            Text("${visit.localTime} · ${visit.status} · ${visit.source}")
-                        }
-                        Text("Всего записей на 8 дней: ${visits.size}")
+                    "Сегодня" -> TodayOverview(today, visits, clients, services, dailyIncome, workingWindows) {
+                        page = "Календарь"
                     }
                     "Календарь" -> {
                         CalendarPanel(api, activeToken, visits, clients, services) {
@@ -166,19 +265,41 @@ fun MasterApp() {
                         SchedulePanel(api, activeToken) { refresh(activeToken) }
                     }
                     "Клиенты" -> {
-                        Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
-                        clients.forEach { client -> Text(client.name) }
+                        ClientsPanel(clients, visits, services)
                     }
                     "Услуги" -> {
                         ServicesPanel(api, activeToken, services) { refresh(activeToken) }
                     }
                     "Финансы" -> {
-                        FinancePanel(api = api, token = activeToken)
+                        FinancePanel(api = api, token = activeToken, onChanged = { refresh(activeToken) })
                     }
                     "Материалы" -> {
                         MaterialsPanel(api, activeToken)
                     }
-                    else -> {
+                    "Отчёты" -> {
+                        Text("Отчёты", style = MaterialTheme.typography.titleLarge)
+                        AppCard {
+                            Text("Подробные отчёты пока недоступны.")
+                            Text("Фактические поступления и расходы доступны в разделе «Финансы».")
+                        }
+                    }
+                    "Настройки" -> {
+                        Text("Настройки", style = MaterialTheme.typography.titleLarge)
+                        AppCard {
+                            Text("Интеграции и резервные копии", style = MaterialTheme.typography.titleMedium)
+                            Text("Состояние подключений и резервных копий в приложении пока не отображается.")
+                        }
+                    }
+                    "Ещё" -> {
+                        Text("Ещё", style = MaterialTheme.typography.titleLarge)
+                        Text("Рабочие инструменты", color = StasyColors.Body)
+                        morePages.forEach { destination ->
+                            TextButton(onClick = { page = destination }, modifier = Modifier.fillMaxWidth()) {
+                                Text(destination)
+                            }
+                        }
+                    }
+                    "+ Запись" -> {
                         ManualBookingForm(
                             services = services, busy = busy,
                             onCreate = { name, service, day, clock ->
@@ -199,6 +320,54 @@ fun MasterApp() {
                         )
                     }
                 }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ClientsPanel(clients: List<ClientItem>, visits: List<VisitItem>, services: List<ServiceItem>) {
+    var query by remember { mutableStateOf("") }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    val selected = clients.find { it.id == selectedId }
+    val filtered = clients.filter {
+        it.name.contains(query.trim(), ignoreCase = true) ||
+            (it.phone?.contains(query.trim(), ignoreCase = true) == true)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (selected != null) {
+            Text("Карточка клиента", style = MaterialTheme.typography.titleLarge)
+            AppCard {
+                Text(selected.name, style = MaterialTheme.typography.titleMedium)
+                Text(selected.phone ?: "Телефон не указан")
+            }
+            Text("Записи на ближайшие 8 дней", style = MaterialTheme.typography.titleMedium)
+            val clientVisits = visits.filter { it.clientId == selected.id }
+            if (clientVisits.isEmpty()) Text("Записей за этот период нет.")
+            clientVisits.forEach { visit ->
+                val service = services.find { it.id == visit.serviceId }?.name ?: "Услуга не указана"
+                AppCard {
+                    Text("${visit.localTime} · $service")
+                    Text(visitStatusLabel(visit.status), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Text("Полная история клиента пока недоступна.", style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { selectedId = null }) { Text("Назад к клиентам") }
+        } else {
+            Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
+            OutlinedTextField(value = query, onValueChange = { query = it },
+                label = { Text("Поиск по имени или телефону") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true)
+            if (filtered.isEmpty()) {
+                Text(if (clients.isEmpty()) "Клиентов пока нет." else "Клиенты не найдены.")
+            }
+            filtered.forEach { client ->
+                AppCard {
+                    Text(client.name, style = MaterialTheme.typography.titleMedium)
+                    client.phone?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    TextButton(onClick = { selectedId = client.id }) { Text("Подробнее · ${client.name}") }
+                }
             }
         }
     }
@@ -210,7 +379,7 @@ fun ManualBookingForm(
     onCreate: (String, String, String, String) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).toString()) }
+    var date by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).format(studioDateFormat)) }
     var clock by remember { mutableStateOf("10:00") }
     var selected by remember { mutableStateOf<ServiceItem?>(null) }
     var expanded by remember { mutableStateOf(false) }
@@ -222,7 +391,7 @@ fun ManualBookingForm(
             value = name, onValueChange = { name = it }, label = { Text("Имя клиента") },
             modifier = Modifier.fillMaxWidth(),
         )
-        Button(onClick = { expanded = true }) {
+        StasyButton(onClick = { expanded = true }) {
             Text(selected?.let { "${it.name} · ${it.variant ?: ""}" } ?: "Выбрать услугу")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -233,13 +402,19 @@ fun ManualBookingForm(
                 )
             }
         }
+        selected?.priceKopecks?.let { price ->
+            Text("Ожидаемая стоимость записи: ${formatCash(price.toLong())}")
+            Text("Фактические поступления записываются отдельно.", style = MaterialTheme.typography.bodySmall)
+        }
         OutlinedTextField(value = date, onValueChange = { date = it },
-            label = { Text("Дата: ГГГГ-ММ-ДД") })
+            label = { Text("Дата: ДД.ММ.ГГГГ") }, isError = date.isNotEmpty() && parseStudioDate(date) == null)
         OutlinedTextField(value = clock, onValueChange = { clock = it },
             label = { Text("Время: ЧЧ:ММ") })
-        Button(
-            enabled = !busy && name.isNotBlank() && selected != null,
-            onClick = { selected?.let { onCreate(name.trim(), it.id, date, clock) } },
+        StasyButton(
+            enabled = !busy && name.isNotBlank() && selected != null && parseStudioDate(date) != null,
+            onClick = { selected?.let { service -> parseStudioDate(date)?.let { day ->
+                onCreate(name.trim(), service.id, day.toString(), clock)
+            } } },
         ) { Text("Создать подтверждённую запись") }
     }
 }

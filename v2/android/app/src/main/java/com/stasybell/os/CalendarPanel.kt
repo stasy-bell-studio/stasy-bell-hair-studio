@@ -2,24 +2,54 @@ package com.stasybell.os
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
+import java.time.format.DateTimeFormatter
+
+fun visitStatusLabel(status: String): String = when (status) {
+    "confirmed" -> "Подтверждена"
+    "completed" -> "Выполнена"
+    "cancelled" -> "Отменена"
+    "no_show" -> "Не пришёл"
+    "pending_channel" -> "Ожидает подтверждения"
+    "expired" -> "Срок подтверждения истёк"
+    "blocked" -> "Время заблокировано"
+    else -> status
+}
+
+fun countsAsVisit(status: String): Boolean = status in setOf("confirmed", "pending_channel", "completed")
 
 @Composable
 fun CalendarPanel(
@@ -29,36 +59,218 @@ fun CalendarPanel(
     val scope = rememberCoroutineScope()
     var selected by remember { mutableStateOf<VisitItem?>(null) }
     var pendingAction by remember { mutableStateOf("") }
-    var moveDay by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).toString()) }
+    var moveDay by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).format(studioDateFormat)) }
     var moveTime by remember { mutableStateOf("10:00") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var rangeMode by remember { mutableStateOf("Месяц") }
+    var expandedVisit by remember { mutableStateOf<String?>(null) }
+    var showTimeline by remember { mutableStateOf(false) }
+    var anchor by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow"))) }
+    var rangeVisits by remember { mutableStateOf(visits) }
+    var rangeLoading by remember { mutableStateOf(false) }
+    var rangeError by remember { mutableStateOf("") }
+    var windows by remember { mutableStateOf<List<WorkingTime>?>(null) }
+    var windowsError by remember { mutableStateOf("") }
+    var dateDialog by remember { mutableStateOf(false) }
+    var targetDate by remember { mutableStateOf(anchor.format(studioDateFormat)) }
+
+    val from = when (rangeMode) {
+        "День" -> anchor
+        "Неделя" -> anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        "Месяц" -> anchor.withDayOfMonth(1)
+        else -> LocalDate.now(ZoneId.of("Europe/Moscow"))
+    }
+    val to = when (rangeMode) {
+        "День" -> from
+        "Неделя" -> from.plusDays(6)
+        "Месяц" -> from.with(TemporalAdjusters.lastDayOfMonth())
+        else -> from.plusDays(7)
+    }
+    LaunchedEffect(token, rangeMode, from, to, visits) {
+        windows = null
+        windowsError = ""
+        if (rangeMode == "Ближайшие") {
+            rangeVisits = visits
+            rangeError = ""
+        } else {
+            rangeLoading = true
+            rangeVisits = emptyList()
+            try {
+                rangeVisits = api.visits(token, from, to)
+                rangeError = ""
+                if (rangeMode == "День") {
+                    try { windows = api.schedule(token, from.toString()) }
+                    catch (ex: CancellationException) { throw ex }
+                    catch (ex: Exception) { windowsError = "Не удалось загрузить рабочие окна: ${ex.message}" }
+                }
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                rangeError = "Не удалось загрузить календарь: ${ex.message}"
+            } finally { rangeLoading = false }
+        }
+    }
 
     fun request(visit: VisitItem, action: String) {
         selected = visit
         pendingAction = action
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Календарь · ближайшие 8 дней", style = MaterialTheme.typography.titleLarge)
-        if (visits.isEmpty()) Text("На выбранные даты записей нет.")
-        visits.forEach { visit ->
+    val compactFont = LocalDensity.current.fontScale >= 1.3f
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        EditorialCard(spacing = 0.dp) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf("День", "Неделя", "Месяц").forEach { mode ->
+                FilterChip(selected = rangeMode == mode, onClick = { rangeMode = mode },
+                    label = { Text(if (mode == "Неделя" && compactFont) "Нед." else mode, maxLines = 1) },
+                    modifier = Modifier.weight(1f).semantics { contentDescription = mode })
+            }
+        }
+        if (rangeMode != "Ближайшие") {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = {
+                    anchor = when (rangeMode) {
+                        "День" -> anchor.minusDays(1)
+                        "Неделя" -> anchor.minusWeeks(1)
+                        else -> anchor.minusMonths(1)
+                    }
+                }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Назад") }
+                TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
+                    Text(anchor.format(DateTimeFormatter.ofPattern("LLLL yyyy", studioLocale)),
+                        style = MaterialTheme.typography.titleMedium)
+                }
+                TextButton(onClick = {
+                    anchor = when (rangeMode) {
+                        "День" -> anchor.plusDays(1)
+                        "Неделя" -> anchor.plusWeeks(1)
+                        else -> anchor.plusMonths(1)
+                    }
+                }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Вперёд") }
+            }
+        }
+        if (!rangeLoading && rangeError.isBlank()) {
+            val count = rangeVisits.count { it.kind == "appointment" && countsAsVisit(it.status) }
+            Text("Записей за период: $count", style = MaterialTheme.typography.bodySmall)
+        }
+        if (rangeLoading) Text("Загрузка календаря…")
+        if (rangeError.isNotBlank()) Text(rangeError, color = MaterialTheme.colorScheme.error)
+        if (windowsError.isNotBlank()) Text(windowsError, color = MaterialTheme.colorScheme.error)
+        if (rangeMode == "День") TextButton(onClick = { showTimeline = !showTimeline }) {
+            Text(if (showTimeline) "Скрыть рабочие окна" else "Рабочие окна и интервалы")
+        }
+        if (showTimeline) windows?.let { actualWindows ->
+            Text(if (actualWindows.isEmpty()) "Открытых рабочих окон нет." else
+                "Рабочие окна: " + actualWindows.joinToString(", ") { "${it.start.take(5)}–${it.end.take(5)}" },
+                style = MaterialTheme.typography.bodySmall)
+            if (actualWindows.isNotEmpty()) {
+                Text("Распорядок дня", style = MaterialTheme.typography.titleMedium)
+                Text("Занятые интервалы включают буфер. Интервал без записи не гарантирует свободный слот для конкретной услуги.",
+                    style = MaterialTheme.typography.bodySmall)
+                dayTimeline(from, actualWindows, rangeVisits).forEach { slice ->
+                    val interval = "${slice.start}–${slice.end}"
+                    val label = slice.visit?.let { visit ->
+                        val client = clients.find { it.id == visit.clientId }?.name ?: "Блок времени"
+                        "$client · ${visitStatusLabel(visit.status)}"
+                    } ?: "Без записи"
+                    AppCard { Text("$interval · $label") }
+                }
+            }
+        }
+        if (!rangeLoading && rangeError.isBlank() && rangeVisits.isEmpty() &&
+            rangeMode !in listOf("Неделя", "Месяц")) Text("На выбранные даты записей нет.")
+        if (!rangeLoading && rangeError.isBlank() && rangeMode in listOf("Неделя", "Месяц")) {
+            val dates = if (rangeMode == "Неделя") calendarWeekDates(anchor) else calendarMonthDates(anchor)
+            val visitCounts = rangeVisits.asSequence()
+                .filter { it.kind == "appointment" && countsAsVisit(it.status) }
+                .mapNotNull { parseStudioDate(it.localTime.substringBefore(" ")) }
+                .groupingBy { it }
+                .eachCount()
+            CalendarDateGrid(
+                dates = dates,
+                anchor = anchor,
+                displayMonth = if (rangeMode == "Неделя") anchor else from,
+                visitCounts = visitCounts,
+                showWeekdaysInCells = rangeMode == "Неделя",
+                onSelect = { date ->
+                    anchor = date
+                    if (date.month != from.month) rangeMode = "День"
+                },
+            )
+        }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Записи на ${anchor.format(DateTimeFormatter.ofPattern("d MMMM", studioLocale))}",
+                style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)
+                    .semantics { contentDescription = anchor.format(studioDateFormat) })
+            TextButton(onClick = { targetDate = anchor.format(studioDateFormat); dateDialog = true }) {
+                Text("К дате", modifier = Modifier.semantics { contentDescription = "Перейти к дате" })
+            }
+        }
+        val detailedVisits = rangeVisits.filter { it.localTime.startsWith(anchor.format(studioDateFormat)) }
+        if (!rangeLoading && rangeError.isBlank() && detailedVisits.isEmpty()) {
+            Text("На этот день записей нет.", color = StasyColors.Muted)
+        }
+        detailedVisits.forEach { visit ->
             val client = clients.find { it.id == visit.clientId }?.name ?: "Без клиента"
             val service = services.find { it.id == visit.serviceId }?.name ?: "Блок времени"
-            Text("${visit.localTime} · $client · $service")
-            Text("${visit.status} · ${visit.source}", style = MaterialTheme.typography.bodySmall)
-            if (visit.kind == "appointment" && visit.status == "confirmed") {
-                Button(onClick = { request(visit, "move") }) { Text("Перенести") }
-                Button(onClick = { request(visit, "complete") }) { Text("Услуга выполнена") }
-                Button(onClick = { request(visit, "no_show") }) { Text("Не пришёл") }
-                Button(onClick = { request(visit, "cancel") }) { Text("Отменить") }
-            }
-            if (visit.kind == "appointment" && visit.status in
-                    listOf("confirmed", "completed", "no_show", "cancelled")) {
-                Button(onClick = { request(visit, "delete") }) { Text("Удалить с историей") }
+            EditorialCard {
+                VisitSummaryRow(visit, client, service) {
+                    expandedVisit = if (expandedVisit == visit.id) null else visit.id
+                }
+                if (expandedVisit == visit.id) {
+                val status = visitStatusLabel(visit.status)
+                val source = when (visit.source) {
+                    "phone" -> "вручную"
+                    else -> visit.source
+                }
+                Text("$status · $source", style = MaterialTheme.typography.bodySmall)
+                Text("Окончание: ${visit.localEnd}", style = MaterialTheme.typography.bodySmall)
+                visit.durationMinutes?.let { Text("Длительность: $it мин", style = MaterialTheme.typography.bodySmall) }
+                visit.quotedPriceKopecks?.let {
+                    Text("Ожидаемая стоимость записи: ${formatCash(it)}", style = MaterialTheme.typography.bodySmall)
+                }
+                if (visit.kind == "appointment" && visit.status == "confirmed") {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { request(visit, "move") }, modifier = Modifier.weight(1f)) { Text("Перенести") }
+                        TextButton(onClick = { request(visit, "complete") }, modifier = Modifier.weight(1f)) { Text("Услуга выполнена") }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { request(visit, "no_show") }, modifier = Modifier.weight(1f)) { Text("Не пришёл") }
+                        TextButton(onClick = { request(visit, "cancel") }, modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Отменить") }
+                    }
+                }
+                if (visit.kind == "appointment" && visit.status in
+                        listOf("confirmed", "completed", "no_show", "cancelled")) {
+                    TextButton(onClick = { request(visit, "delete") },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Удалить с историей") }
+                }
+                }
             }
         }
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
+    }
+
+    if (dateDialog) {
+        AlertDialog(
+            onDismissRequest = { dateDialog = false },
+            title = { Text("Перейти к дате") },
+            text = {
+                OutlinedTextField(value = targetDate, onValueChange = { targetDate = it },
+                    label = { Text("Дата, ДД.ММ.ГГГГ") },
+                    isError = targetDate.isNotEmpty() && parseStudioDate(targetDate) == null,
+                    modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = {
+                TextButton(enabled = parseStudioDate(targetDate) != null, onClick = {
+                    anchor = requireNotNull(parseStudioDate(targetDate))
+                    rangeMode = "День"
+                    dateDialog = false
+                }) { Text("Открыть день") }
+            },
+            dismissButton = { TextButton(onClick = { dateDialog = false }) { Text("Назад") } },
+        )
     }
 
     val visit = selected
@@ -76,10 +288,14 @@ fun CalendarPanel(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("${visit.localTime} · $clientName")
+                    if (pendingAction == "complete") {
+                        Text("Поступление денег записывается отдельно вручную.")
+                    }
                     if (pendingAction == "move") {
                         OutlinedTextField(
                             value = moveDay, onValueChange = { moveDay = it },
-                            label = { Text("Новая дата, ГГГГ-ММ-ДД") },
+                            label = { Text("Новая дата, ДД.ММ.ГГГГ") },
+                            isError = moveDay.isNotEmpty() && parseStudioDate(moveDay) == null,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
@@ -94,12 +310,12 @@ fun CalendarPanel(
                 }
             },
             confirmButton = {
-                TextButton(enabled = !busy, onClick = {
+                TextButton(enabled = !busy && (pendingAction != "move" || parseStudioDate(moveDay) != null), onClick = {
                     busy = true
                     scope.launch {
                         try {
                             when (pendingAction) {
-                                "move" -> api.moveVisit(token, visit.id, moveDay, moveTime)
+                                "move" -> api.moveVisit(token, visit.id, requireNotNull(parseStudioDate(moveDay)).toString(), moveTime)
                                 "complete" -> api.updateVisitStatus(token, visit.id, "completed")
                                 "no_show" -> api.updateVisitStatus(token, visit.id, "no_show")
                                 "cancel" -> api.cancelVisit(token, visit.id)

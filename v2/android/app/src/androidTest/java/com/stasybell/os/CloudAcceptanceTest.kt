@@ -1,12 +1,18 @@
 package com.stasybell.os
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.isDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -25,15 +31,45 @@ import org.junit.runner.RunWith
 class CloudAcceptanceTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    private fun setSystemSetting(command: String) {
+        val settingName = command.substringBefore(' ')
+        android.util.Log.i("CloudAcceptanceTest", "setting-start:$settingName")
+        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand(command)
+        ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { it.readBytes() }
+        android.util.Log.i("CloudAcceptanceTest", "setting-complete:$settingName")
+    }
+
     private fun waitFor(text: String, substring: Boolean = false) {
         compose.waitUntil(timeoutMillis = 20_000) {
-            compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithContentDescription(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    private fun currentWeekRange(): String {
+        val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
+        val firstDay = ((today.dayOfMonth - 1) / 7) * 7 + 1
+        val lastDay = minOf(firstDay + 6, today.lengthOfMonth())
+        return "$firstDay–$lastDay"
     }
 
     private fun click(text: String) {
         waitFor(text)
-        val node = compose.onNodeWithText(text)
+        val node = if (compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty())
+            compose.onNodeWithText(text) else compose.onNodeWithContentDescription(text)
+        if (!node.isDisplayed()) node.performScrollTo()
+        compose.waitUntil(timeoutMillis = 20_000) {
+            runCatching { node.assertIsEnabled() }.isSuccess
+        }
+        node.performClick()
+    }
+
+    private fun clickAccessible(description: String) {
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes().isNotEmpty()
+        }
+        val node = compose.onNodeWithContentDescription(description)
         if (!node.isDisplayed()) node.performScrollTo()
         node.performClick()
     }
@@ -42,10 +78,14 @@ class CloudAcceptanceTest {
         waitFor(label)
         val node = compose.onNodeWithText(label)
         if (!node.isDisplayed()) node.performScrollTo()
+        compose.waitUntil(timeoutMillis = 20_000) {
+            runCatching { node.assertIsEnabled() }.isSuccess
+        }
         node.performTextReplacement(value)
     }
 
     private fun screenshot(name: String) {
+        android.util.Log.i("CloudAcceptanceTest", "screenshot-start:$name")
         compose.activity.runOnUiThread {
             val focus = compose.activity.currentFocus
             val keyboard = compose.activity.getSystemService(Context.INPUT_METHOD_SERVICE)
@@ -60,23 +100,33 @@ class CloudAcceptanceTest {
                 ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))
                     .use { it.readBytes() }
             }
+        android.util.Log.i("CloudAcceptanceTest", "screenshot-complete:$name")
     }
 
     private fun book(client: String, time: String, day: String) {
+        click("Ещё")
         click("+ Запись")
         enter("Имя клиента", client)
         click("Выбрать услугу")
         click("Synthetic service · ")
-        enter("Дата: ГГГГ-ММ-ДД", day)
+        enter("Дата: ДД.ММ.ГГГГ", day)
         enter("Время: ЧЧ:ММ", time)
         screenshot("manual-booking")
         click("Создать подтверждённую запись")
+        openDay(day)
         waitFor(client, substring = true)
+        click(client)
+    }
+
+    private fun openDay(day: String) {
+        clickAccessible("Перейти к дате")
+        enter("Дата, ДД.ММ.ГГГГ", day)
+        click("Открыть день")
+        waitFor(day)
     }
 
     @Test fun ownerJourney() {
         val day = LocalDate.now(ZoneId.of("Europe/Moscow")).plusDays(1)
-        val iso = day.toString()
         val display = day.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
 
         waitFor("Личный кабинет мастера")
@@ -87,9 +137,10 @@ class CloudAcceptanceTest {
         waitFor("Ближайшие визиты")
         screenshot("02-today")
 
+        click("Ещё")
         click("График")
         waitFor("Рабочий график")
-        enter("Дата, ГГГГ-ММ-ДД", iso)
+        enter("Дата, ДД.ММ.ГГГГ", display)
         click("Обновить день")
         waitFor("В этот день нет открытых окон.")
         enter("Начало первого окна", "09:00")
@@ -98,39 +149,87 @@ class CloudAcceptanceTest {
         waitFor("График сохранён.")
         screenshot("03-schedule")
 
+        click("Ещё")
         click("Услуги")
         waitFor("Новая услуга")
         enter("Название", "Synthetic service")
-        enter("Стоимость, ₽ целыми рублями", "1000")
+        enter("Вариант (если нужен)", "Synthetic variant")
+        enter("Стоимость услуги, ₽", "1000")
         enter("Длительность, минуты", "60")
+        enter("Буфер, минуты", "15")
         click("Создать услугу")
         waitFor("Изменить · Synthetic service")
         screenshot("04-service-created")
         click("Изменить · Synthetic service")
-        enter("Стоимость, ₽ целыми рублями", "1200")
+        enter("Вариант (если нужен)", "")
+        enter("Стоимость услуги, ₽", "1200,50")
         click("Сохранить изменения")
-        waitFor("Synthetic service : 1200 ₽", substring = true)
+        waitFor("Synthetic service : 1200,50 ₽", substring = true)
+        click("Изменить · Synthetic service")
+        waitFor("1200.50")
+        click("Сохранить изменения")
+        waitFor("Synthetic service : 1200,50 ₽", substring = true)
         screenshot("05-service-edited")
 
-        book("Synthetic Move", "10:00", iso)
+        click("Календарь")
+        click("День")
+        waitFor("На выбранные даты записей нет.")
+        screenshot("05-calendar-day")
+        click("Неделя")
+        waitFor("Записей за период: 0")
+        screenshot("05-calendar-week")
+        val todayDisplay = day.minusDays(1).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+        clickAccessible("Выбрать $todayDisplay, записей: 0")
+        waitFor(todayDisplay)
+        click("Месяц")
+        waitFor("Записей за период: 0")
+        screenshot("05-calendar-month")
+        clickAccessible("Выбрать $todayDisplay, записей: 0")
+        waitFor(todayDisplay)
+        clickAccessible("Перейти к дате")
+        enter("Дата, ДД.ММ.ГГГГ", display)
+        click("Открыть день")
+        waitFor(display)
+
+        book("Synthetic Move", "10:00", display)
         waitFor("$display 10:00 · Synthetic Move", substring = true)
+        waitFor("Ожидаемая стоимость записи: 1200,50 ₽")
         screenshot("06-calendar")
+        clickAccessible("Перейти к дате")
+        enter("Дата, ДД.ММ.ГГГГ", display)
+        click("Открыть день")
+        waitFor("$display 10:00 · Synthetic Move", substring = true)
+        click("Рабочие окна и интервалы")
+        waitFor("Рабочие окна: 09:00–19:00")
+        waitFor("09:00–10:00 · Без записи")
+        waitFor("10:00–11:15 · Synthetic Move · Подтверждена")
+        click("Неделя")
+        clickAccessible("Выбрать $display, записей: 1")
+        waitFor("$display 10:00 · Synthetic Move", substring = true)
+        click("Клиенты")
+        click("Сегодня")
+        waitFor("Synthetic Move", substring = true)
+        screenshot("06-today-upcoming")
+        click("Календарь")
+        openDay(display)
+        waitFor("$display 10:00 · Synthetic Move", substring = true)
+        click("Synthetic Move")
         click("Перенести")
-        enter("Новая дата, ГГГГ-ММ-ДД", iso)
+        enter("Новая дата, ДД.ММ.ГГГГ", display)
         enter("Новое время, ЧЧ:ММ", "12:00")
         click("Подтвердить")
         waitFor("$display 12:00 · Synthetic Move", substring = true)
         screenshot("07-moved")
         click("Отменить")
         click("Подтвердить")
-        waitFor("cancelled · phone")
+        waitFor("Отменена · вручную")
         screenshot("08-cancelled")
 
-        book("Synthetic Completed", "14:00", iso)
+        book("Synthetic Completed", "14:00", display)
         waitFor("$display 14:00 · Synthetic Completed", substring = true)
         click("Услуга выполнена")
         click("Подтвердить")
-        waitFor("completed · phone")
+        waitFor("Выполнена · вручную")
         screenshot("09-completed")
 
         click("Клиенты")
@@ -138,41 +237,196 @@ class CloudAcceptanceTest {
         val client = compose.onNodeWithText("Synthetic Completed")
         if (!client.isDisplayed()) client.performScrollTo()
         client.assertIsDisplayed()
+        enter("Поиск по имени или телефону", "Synthetic Completed")
+        waitFor("Synthetic Completed")
         screenshot("09-clients")
+        click("Подробнее · Synthetic Completed")
+        waitFor("Карточка клиента")
+        waitFor("Полная история клиента пока недоступна.")
+        screenshot("09-client-detail")
+        click("Назад к клиентам")
 
         click("Финансы")
-        waitFor("Поступления: 0,00 ₽")
-        enter("Сумма в целых рублях", "1500")
+        waitFor("Поступления: 0 ₽")
+        screenshot("10-finance-overview")
+        click("Следующий месяц")
+        waitFor("Будущий месяц нельзя закрыть заранее.")
+        check(compose.onAllNodesWithText("Закрыть месяц").fetchSemanticsNodes().isEmpty()) {
+            "Future months must not offer a close action."
+        }
+        click("Предыдущий месяц")
+        waitFor("Поступления: 0 ₽")
+        click("Новая операция")
+        enter("Сумма, ₽", "900")
         click("Записать фактическую операцию")
-        waitFor("Поступления: 1500,00 ₽")
+        waitFor("Поступления: 900 ₽")
+        enter("Сумма, ₽", "1500")
+        compose.onNodeWithText("Записать фактическую операцию")
+            .performTouchInput {
+                click()
+                click()
+            }
+        waitFor("Поступления: 2 400 ₽")
         click("Доход — переключить на расход")
-        enter("Сумма в целых рублях", "300")
+        click("Прочее")
+        click("Материалы")
+        enter("Сумма, ₽", "300,25")
         click("Записать фактическую операцию")
-        waitFor("Расходы: 300,00 ₽")
-        waitFor("Денежная разница: 1200,00 ₽")
+        waitFor("Расходы: 300,25 ₽")
+        waitFor("Итог: 2 099,75 ₽")
+        check(compose.onAllNodesWithContentDescription(
+            "${currentWeekRange()}: поступления 2 400 ₽, расходы 300,25 ₽",
+        ).fetchSemanticsNodes().isNotEmpty()) {
+            "Weekly chart must show the saved income and expense in the current week."
+        }
+        compose.onNodeWithContentDescription("Поступления: 2 400 ₽").performScrollTo()
         screenshot("10-finance")
+        waitFor("Расход · Материалы")
+        val history = compose.onNodeWithText("Расход · Материалы")
+        if (!history.isDisplayed()) history.performScrollTo()
+        history.assertIsDisplayed()
+        val incomeHistory = compose.onAllNodesWithText("Поступление · Прочее")[0]
+        incomeHistory.performScrollTo()
+        incomeHistory.assertIsDisplayed()
+        check(compose.onAllNodesWithText("Поступление · Прочее").fetchSemanticsNodes().size == 2) {
+            "A double tap should create one operation, and two actual entries should remain visible."
+        }
+        screenshot("10-finance-history")
+        click("Закрыть месяц")
+        click("Подтвердить закрытие")
+        waitFor("Месяц закрыт: добавление операций заблокировано.")
+        waitFor("Закрытие · версия 1")
+        val addOperation = compose.onNodeWithText("Записать фактическую операцию")
+        if (!addOperation.isDisplayed()) addOperation.performScrollTo()
+        addOperation.assertIsNotEnabled()
+        click("Открыть месяц повторно")
+        waitFor("Причина повторного открытия")
+        compose.onNodeWithText("Подтвердить повторное открытие").assertIsNotEnabled()
+        enter("Причина повторного открытия", "Сверка тестового месяца")
+        click("Подтвердить повторное открытие")
+        waitFor("Повторно открыто", substring = true)
+        click("Сторнировать Расход · Материалы")
+        enter("Причина корректировки", "Проверка тестового сторно")
+        click("Подтвердить сторно")
+        waitFor("Расходы: 0 ₽")
+        waitFor("Итог: 2 400 ₽")
+        check(compose.onAllNodesWithContentDescription(
+            "${currentWeekRange()}: поступления 2 400 ₽, расходы 0 ₽",
+        ).fetchSemanticsNodes().isNotEmpty()) {
+            "Reversing the expense must reduce the same week's chart amount to zero."
+        }
+        waitFor("Сторно · Расход · Материалы")
+        waitFor("Причина: Проверка тестового сторно")
+        waitFor("Причина: Сверка тестового месяца")
+        click("Закрыть месяц")
+        click("Подтвердить закрытие")
+        waitFor("Закрытие · версия 2")
+        click("Предыдущий месяц")
+        waitFor("Добавление операций доступно только в текущем месяце.")
+        click("Следующий месяц")
+        waitFor("Поступления: 2 400 ₽")
+        click("Сегодня")
+        waitFor("2400,00 ₽")
+        screenshot("10-today-after-cash")
 
+        click("Ещё")
         click("Материалы")
         waitFor("Новый материал")
         enter("Название состава", "Synthetic material")
         click("Добавить материал")
         waitFor("Изменить остаток · Synthetic material")
         click("Изменить остаток · Synthetic material")
-        enter("Количество g (например 25,5)", "25")
+        enter("Количество г (например 25,5)", "25")
         enter("Причина: закупка / процедура", "Synthetic purchase")
         click("Добавить на склад")
-        waitFor("Synthetic material: 25.0 g")
+        waitFor("Synthetic material: 25.0 г")
         click("Изменить остаток · Synthetic material")
-        enter("Количество g (например 25,5)", "5")
+        enter("Количество г (например 25,5)", "5")
         enter("Причина: закупка / процедура", "Synthetic usage")
         click("Списать со склада")
-        waitFor("Synthetic material: 20.0 g")
-        val stock = compose.onNodeWithText("Synthetic material: 20.0 g")
+        waitFor("Synthetic material: 20.0 г")
+        val stock = compose.onNodeWithText("Synthetic material: 20.0 г")
         if (!stock.isDisplayed()) stock.performScrollTo()
         stock.assertIsDisplayed()
         screenshot("11-materials")
-        click("Выход")
+        click("История · Synthetic material")
+        waitFor("-5 г · Synthetic usage")
+        val movement = compose.onNodeWithText("-5 г · Synthetic usage")
+        if (!movement.isDisplayed()) movement.performScrollTo()
+        movement.assertIsDisplayed()
+        screenshot("11-material-history")
+        click("Ещё")
+        click("Отчёты")
+        waitFor("Подробные отчёты пока недоступны.")
+        screenshot("11-reports-unavailable")
+        click("Ещё")
+        click("Настройки")
+        waitFor("Состояние подключений и резервных копий в приложении пока не отображается.")
+        screenshot("11-settings-unavailable")
+        clickAccessible("Выход")
         waitFor("Личный кабинет мастера")
         screenshot("12-logout")
+    }
+
+    @Test fun keyScreensRemainNavigableAtLargeSystemFont() {
+        android.util.Log.i("CloudAcceptanceTest", "large-font-test-start")
+        setSystemSetting("wm size 320x640")
+        setSystemSetting("wm density 160")
+        setSystemSetting("settings put system font_scale 1.5")
+        try {
+            waitFor("Личный кабинет мастера")
+            android.util.Log.i("CloudAcceptanceTest", "large-font-login-visible")
+            enter("Логин", "acceptance_owner")
+            enter("Пароль", "synthetic_password_only_123")
+            click("Войти")
+            waitFor("Ближайшие визиты")
+            screenshot("13-today-font-1.5")
+
+            clickAccessible("Календарь")
+            clickAccessible("Неделя")
+            waitFor("Записей за период:", substring = true)
+            screenshot("13-calendar-week-font-1.5")
+            val todayDate = LocalDate.now(ZoneId.of("Europe/Moscow"))
+            val today = todayDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+            val todayCell = compose.onNodeWithContentDescription("Выбрать $today, записей: 0")
+            if (!todayCell.isDisplayed()) todayCell.performScrollTo()
+            screenshot("13-calendar-week-grid-font-1.5")
+            click("Месяц")
+            screenshot("13-calendar-month-font-1.5")
+            val firstOfMonth = todayDate.withDayOfMonth(1)
+                .format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+            val firstCell = compose.onNodeWithContentDescription("Выбрать $firstOfMonth, записей: 0")
+            if (!firstCell.isDisplayed()) firstCell.performScrollTo()
+            screenshot("13-calendar-month-grid-font-1.5")
+
+            clickAccessible("Финансы")
+            waitFor("Новая операция")
+            screenshot("13-finance-font-1.5")
+            clickAccessible("Клиенты")
+            waitFor("Поиск по имени или телефону")
+            screenshot("13-clients-font-1.5")
+
+            clickAccessible("Ещё")
+            click("График")
+            waitFor("Рабочий график")
+            screenshot("13-schedule-font-1.5")
+            clickAccessible("Ещё")
+            click("Услуги")
+            waitFor("Услуги и длительность")
+            screenshot("13-services-font-1.5")
+            clickAccessible("Ещё")
+            click("Материалы")
+            waitFor("Новый материал")
+            screenshot("13-materials-font-1.5")
+            clickAccessible("Ещё")
+            click("+ Запись")
+            waitFor("Ручная запись")
+            screenshot("13-booking-font-1.5")
+            clickAccessible("Выход")
+        } finally {
+            setSystemSetting("settings put system font_scale 1.0")
+            setSystemSetting("wm size reset")
+            setSystemSetting("wm density reset")
+        }
     }
 }

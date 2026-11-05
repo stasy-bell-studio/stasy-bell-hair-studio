@@ -11,26 +11,44 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 
 data class ServiceItem(
     val id: String, val name: String, val variant: String?,
-    val minutes: Int?, val priceKopecks: Int?,
+    val minutes: Int?, val priceKopecks: Int?, val bufferMinutes: Int,
 )
-data class ClientItem(val id: String, val name: String)
+data class ClientItem(val id: String, val name: String, val phone: String?)
 data class CashSummary(
     val incomeKopecks: Long,
     val expenseKopecks: Long,
     val balanceKopecks: Long,
     val isClosed: Boolean,
 )
+data class CashEntry(
+    val id: String, val kind: String, val category: String, val amountKopecks: Long,
+    val occurredAt: String, val correctionOfId: String?, val note: String?,
+)
+data class FinanceClosure(
+    val version: Int, val incomeKopecks: Long, val expenseKopecks: Long,
+    val balanceKopecks: Long, val reopenedAt: String?, val reopenReason: String?,
+)
 
 data class VisitItem(
     val id: String, val clientId: String?, val serviceId: String?,
-    val startsAt: String, val localTime: String, val status: String,
+    val startsAt: String, val occupiedUntil: String, val localTime: String, val localEnd: String, val status: String,
     val source: String, val kind: String,
+    val durationMinutes: Int?, val quotedPriceKopecks: Long?,
 )
 data class WorkingTime(val start: String, val end: String)
 data class MaterialItem(val id: String, val name: String, val unit: String, val milliunits: Long)
+data class MaterialMovement(val changeMilliunits: Long, val reason: String, val createdAt: String)
+
+val studioDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.uuuu")
+    .withResolverStyle(ResolverStyle.STRICT)
+
+fun parseStudioDate(value: String): LocalDate? = try {
+    LocalDate.parse(value, studioDateFormat)
+} catch (_: java.time.format.DateTimeParseException) { null }
 
 fun toMoscowOffset(date: String, clock: String): String =
     LocalDateTime.parse("${date}T${clock}")
@@ -83,6 +101,49 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         )
     }
 
+    suspend fun financeTransactions(token: String, year: Int, month: Int): List<CashEntry> {
+        val rows = call("GET", "owner/finances/transactions?year=$year&month=$month", token = token)
+            .getJSONArray("entries")
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            CashEntry(
+                row.getString("id"), row.getString("kind"), row.getString("category"),
+                row.getLong("amount_kopecks"), row.getString("occurred_at"),
+                if (row.isNull("correction_of_id")) null else row.getString("correction_of_id"),
+                if (row.isNull("note")) null else row.getString("note"),
+            )
+        }
+    }
+
+    suspend fun financeClosures(token: String, year: Int, month: Int): List<FinanceClosure> {
+        val rows = call("GET", "owner/finances/closures?year=$year&month=$month", token = token)
+            .getJSONArray("versions")
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            FinanceClosure(
+                row.getInt("version"), row.getLong("income_kopecks"),
+                row.getLong("expense_kopecks"), row.getLong("balance_kopecks"),
+                if (row.isNull("reopened_at")) null else row.getString("reopened_at"),
+                if (row.isNull("reopen_reason")) null else row.getString("reopen_reason"),
+            )
+        }
+    }
+
+    suspend fun closeFinanceMonth(token: String, year: Int, month: Int) {
+        call("POST", "owner/finances/close",
+            JSONObject().put("year", year).put("month", month), token)
+    }
+
+    suspend fun reopenFinanceMonth(token: String, year: Int, month: Int, reason: String) {
+        call("POST", "owner/finances/reopen",
+            JSONObject().put("year", year).put("month", month).put("reason", reason), token)
+    }
+
+    suspend fun reverseCashTransaction(token: String, transactionId: String, reason: String) {
+        call("POST", "owner/finances/transactions/$transactionId/reverse",
+            JSONObject().put("reason", reason), token)
+    }
+
     suspend fun addCash(
         token: String, kind: String, category: String, amountKopecks: Long,
     ) {
@@ -109,6 +170,7 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                 row.optString("variant").takeIf { it.isNotBlank() && it != "null" },
                 if (row.isNull("duration_minutes")) null else row.getInt("duration_minutes"),
                 if (row.isNull("price_kopecks")) null else row.getInt("price_kopecks"),
+                row.getInt("buffer_minutes"),
             )
         }
     }
@@ -117,13 +179,13 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         val rows: JSONArray = call("GET", "owner/clients", token = token).getJSONArray("clients")
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
-            ClientItem(row.getString("id"), row.getString("name"))
+            ClientItem(row.getString("id"), row.getString("name"),
+                row.optString("phone").takeIf { it.isNotBlank() && it != "null" })
         }
     }
 
-    suspend fun visits(token: String, today: LocalDate): List<VisitItem> {
-        val end = today.plusDays(7)
-        val rows = call("GET", "owner/calendar?from_day=$today&to_day=$end",
+    suspend fun visits(token: String, from: LocalDate, to: LocalDate = from.plusDays(7)): List<VisitItem> {
+        val rows = call("GET", "owner/calendar?from_day=$from&to_day=$to",
             token = token).getJSONArray("entries")
         return (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
@@ -132,10 +194,14 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                 clientId = row.optString("client_id").takeIf { it.isNotBlank() && it != "null" },
                 serviceId = row.optString("service_id").takeIf { it.isNotBlank() && it != "null" },
                 startsAt = row.getString("starts_at"),
+                occupiedUntil = row.getString("occupied_until"),
                 localTime = localVisitTime(row.getString("starts_at")),
+                localEnd = localVisitTime(row.getString("ends_at")),
                 status = row.getString("status"),
                 source = row.getString("source"),
                 kind = row.getString("kind"),
+                durationMinutes = if (row.isNull("duration_minutes")) null else row.getInt("duration_minutes"),
+                quotedPriceKopecks = if (row.isNull("quoted_price_kopecks")) null else row.getLong("quoted_price_kopecks"),
             )
         }
     }
@@ -205,6 +271,14 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
         call("POST", "owner/materials", JSONObject().put("name", name).put("unit", unit), token)
     }
 
+    suspend fun materialHistory(token: String, id: String): List<MaterialMovement> {
+        val rows = call("GET", "owner/materials/$id/movements", token = token).getJSONArray("movements")
+        return (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            MaterialMovement(row.getLong("change_milliunits"), row.getString("reason"), row.getString("created_at"))
+        }
+    }
+
     suspend fun adjustStock(token: String, id: String, changeMilliunits: Long, reason: String) {
         val body = JSONObject().put("change_milliunits", changeMilliunits).put("reason", reason)
         call("POST", "owner/materials/$id/movement", body, token)
@@ -214,7 +288,7 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                               priceKopecks: Int, duration: Int, buffer: Int) {
         val body = JSONObject()
             .put("code", "owner-" + java.util.UUID.randomUUID())
-            .put("name", name).put("variant", variant)
+            .put("name", name).put("variant", variant ?: JSONObject.NULL)
             .put("price_kopecks", priceKopecks)
             .put("duration_minutes", duration).put("buffer_minutes", buffer)
             .put("active", true)
@@ -225,7 +299,7 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                               name: String, variant: String?,
                               priceKopecks: Int, duration: Int, buffer: Int) {
         val body = JSONObject()
-            .put("name", name).put("variant", variant)
+            .put("name", name).put("variant", variant ?: JSONObject.NULL)
             .put("price_kopecks", priceKopecks)
             .put("duration_minutes", duration).put("buffer_minutes", buffer)
         call("PATCH", "owner/services/$serviceId", body, token)

@@ -28,8 +28,10 @@ def main():
         services = get("/owner/services")["services"]
         assert len(services) == 1
         assert services[0]["name"] == "Synthetic service"
-        assert services[0]["price_kopecks"] == 120000
+        assert services[0]["variant"] is None
+        assert services[0]["price_kopecks"] == 120050
         assert services[0]["duration_minutes"] == 60
+        assert services[0]["buffer_minutes"] == 15
         clients = {item["id"]: item["name"] for item in get("/owner/clients")["clients"]}
         visits = get("/owner/calendar", from_day=str(day), to_day=str(day))["entries"]
         by_client = {clients[item["client_id"]]: item for item in visits}
@@ -42,9 +44,13 @@ def main():
         assert {"created_manual", "moved", "cancelled"} <= {e["action"] for e in events}
         assert by_client["Synthetic Completed"]["status"] == "completed"
         summary = get("/owner/finances/summary", year=today.year, month=today.month)
-        assert summary["income_kopecks"] == 150000
-        assert summary["expense_kopecks"] == 30000
-        assert summary["balance_kopecks"] == 120000
+        assert summary["income_kopecks"] == 240000
+        assert summary["expense_kopecks"] == 0
+        assert summary["balance_kopecks"] == 240000
+        assert summary["is_closed"] is True
+        closures = get("/owner/finances/closures", year=today.year, month=today.month)["versions"]
+        assert len(closures) == 2
+        assert closures[-1]["version"] == 2
         materials = get("/owner/materials")["materials"]
         assert len(materials) == 1
         assert materials[0]["name"] == "Synthetic material"

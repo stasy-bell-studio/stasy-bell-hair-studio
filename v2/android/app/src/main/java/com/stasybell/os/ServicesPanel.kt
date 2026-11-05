@@ -3,7 +3,6 @@ package com.stasybell.os
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -16,11 +15,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 
-fun rublesToKopecks(raw: String): Int? {
-    val rub = raw.replace(" ", "").toIntOrNull()
-    return if (rub != null && rub > 0 && rub <= Int.MAX_VALUE / 100) rub * 100 else null
-}
+fun rublesToKopecks(raw: String): Int? = try {
+    val value = BigDecimal(raw.replace(" ", "").replace(",", "."))
+        .movePointRight(2).intValueExact()
+    value.takeIf { it > 0 }
+} catch (_: ArithmeticException) { null } catch (_: NumberFormatException) { null }
 
 @Composable
 fun ServicesPanel(
@@ -39,15 +40,17 @@ fun ServicesPanel(
         Text("Услуги и длительность", style = MaterialTheme.typography.titleLarge)
         Text("Цены и время задаются мастером; ничего автоматически не добавляется.")
         services.forEach { item ->
-            Text("${item.name} ${item.variant ?: ""}: " +
-                "${item.priceKopecks?.div(100) ?: "—"} ₽ · ${item.minutes ?: "—"} мин")
-            Button(onClick = {
-                editingId = item.id
-                name = item.name; variant = item.variant.orEmpty()
-                price = item.priceKopecks?.div(100)?.toString().orEmpty()
-                duration = item.minutes?.toString().orEmpty()
-                buffer = "0"
-            }) { Text("Изменить · ${item.name}") }
+            AppCard {
+                Text("${item.name} ${item.variant ?: ""}: " +
+                    "${item.priceKopecks?.let { formatCash(it.toLong()) } ?: "—"} · ${item.minutes ?: "—"} мин")
+                StasyButton(onClick = {
+                    editingId = item.id
+                    name = item.name; variant = item.variant.orEmpty()
+                    price = item.priceKopecks?.let { BigDecimal.valueOf(it.toLong(), 2).toPlainString() }.orEmpty()
+                    duration = item.minutes?.toString().orEmpty()
+                    buffer = item.bufferMinutes.toString()
+                }) { Text("Изменить · ${item.name}") }
+            }
         }
         Text(if (editingId == null) "Новая услуга" else "Редактирование услуги",
             style = MaterialTheme.typography.titleMedium)
@@ -56,7 +59,7 @@ fun ServicesPanel(
         OutlinedTextField(value = variant, onValueChange = { variant = it },
             label = { Text("Вариант (если нужен)") })
         OutlinedTextField(value = price, onValueChange = { price = it },
-            label = { Text("Стоимость, ₽ целыми рублями") })
+            label = { Text("Стоимость услуги, ₽") })
         OutlinedTextField(value = duration, onValueChange = { duration = it },
             label = { Text("Длительность, минуты") })
         OutlinedTextField(value = buffer, onValueChange = { buffer = it },
@@ -64,7 +67,7 @@ fun ServicesPanel(
         val cost = rublesToKopecks(price)
         val minutes = duration.toIntOrNull()?.takeIf { it in 1..1440 }
         val gap = buffer.toIntOrNull()?.takeIf { it in 0..1440 }
-        Button(
+        StasyButton(
             enabled = !busy && name.isNotBlank() && cost != null &&
                 minutes != null && gap != null,
             onClick = {
