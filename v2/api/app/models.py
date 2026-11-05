@@ -22,6 +22,24 @@ class MasterAccount(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
 
 
+class OwnerSession(Base):
+    """One revocable device session. Only SHA-256 digests of refresh tokens are stored."""
+    __tablename__ = "owner_sessions"
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    owner_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("master_accounts.id", ondelete="CASCADE"), nullable=False,
+        index=True,
+    )
+    refresh_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    previous_hash: Mapped[str | None] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(),
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Client(Base):
     __tablename__ = "clients"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)

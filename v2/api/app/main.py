@@ -1,6 +1,7 @@
 
 import os
 from uuid import UUID
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,13 +9,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.auth import make_access_token, require_owner, verify_login
+from app.auth import (create_owner_session, require_owner, revoke_owner_session,
+                      rotate_owner_session, verify_login)
 from app.calendar_api import router as calendar_router
 from app.public_booking import router as public_router, rate_limit
 from app.messenger_webhooks import router as messenger_router
 from app.finance_api import router as finance_router
 from app.db import get_db
-from app.models import Client, MasterAccount, Service
+from app.models import Client, MasterAccount, OwnerSession, Service
 from app.web_origins import trusted_web_origins
 
 app = FastAPI(title="Stasy Bell OS V2 API", version="0.1.0", docs_url=None, redoc_url=None)
@@ -28,6 +30,10 @@ if allowed_origins:
 class Login(BaseModel):
     username: str
     password: str
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(min_length=48, max_length=300)
 
 
 class NewClient(BaseModel):
@@ -62,7 +68,50 @@ def login(data: Login, request: Request, db: Session = Depends(get_db)):
     owner = verify_login(db, data.username, data.password)
     if owner is None:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"access_token": make_access_token(owner), "token_type": "bearer", "expires_in": 1800}
+    access, refresh = create_owner_session(db, owner)
+    return {"access_token": access, "refresh_token": refresh,
+            "token_type": "bearer", "expires_in": 1800}
+
+
+@app.post("/auth/refresh")
+def refresh_session(data: RefreshTokenRequest, request: Request, db: Session = Depends(get_db)):
+    rate_limit(request, "owner_refresh", max_events=120, seconds=600)
+    access, refresh = rotate_owner_session(db, data.refresh_token)
+    return {"access_token": access, "refresh_token": refresh,
+            "token_type": "bearer", "expires_in": 1800}
+
+
+@app.post("/auth/logout", status_code=204)
+def logout_session(data: RefreshTokenRequest, db: Session = Depends(get_db)):
+    revoke_owner_session(db, data.refresh_token)
+
+
+@app.get("/owner/sessions")
+def list_owner_sessions(
+    db: Session = Depends(get_db), owner: MasterAccount = Depends(require_owner),
+):
+    sessions = db.scalars(select(OwnerSession).where(
+        OwnerSession.owner_id == owner.id,
+    ).order_by(OwnerSession.created_at.desc())).all()
+    return {"sessions": [
+        {"id": str(item.id), "created_at": item.created_at,
+         "last_used_at": item.last_used_at, "expires_at": item.expires_at,
+         "revoked_at": item.revoked_at}
+        for item in sessions
+    ]}
+
+
+@app.post("/owner/sessions/{session_id}/revoke", status_code=204)
+def revoke_device_session(
+    session_id: UUID, db: Session = Depends(get_db),
+    owner: MasterAccount = Depends(require_owner),
+):
+    item = db.get(OwnerSession, session_id)
+    if item is None or item.owner_id != owner.id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if item.revoked_at is None:
+        item.revoked_at = datetime.now(timezone.utc)
+        db.commit()
 
 
 @app.post("/owner/clients", status_code=201)
