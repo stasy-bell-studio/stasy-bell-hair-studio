@@ -78,7 +78,14 @@ fun MasterApp() {
     val appContext = LocalContext.current
     val activity = appContext as? FragmentActivity
     val sessionStore = remember { SecureSessionStore(appContext) }
-    val api = remember { ApiClient().apply { attachSessionStore(sessionStore) } }
+    var macHost by remember { mutableStateOf(LocalTestServer.host(appContext)) }
+    var hostInput by remember { mutableStateOf(macHost) }
+    var hostError by remember { mutableStateOf("") }
+    val api = remember(macHost) {
+        ApiClient(LocalTestServer.baseUrl(appContext)).apply {
+            attachSessionStore(sessionStore)
+        }
+    }
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf<String?>(null) }
     var checkingSession by remember { mutableStateOf(true) }
@@ -136,7 +143,7 @@ fun MasterApp() {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(api) {
         val allowed = !sessionStore.hasSession() || !biometricEnabled ||
             (activity != null && confirmFingerprint(activity))
         if (allowed) {
@@ -196,6 +203,34 @@ fun MasterApp() {
             ) { Text("Войти") }
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
             Text("Пароль не сохраняется. Сессия защищена Android Keystore.")
+            if (BuildConfig.DEBUG) {
+                Spacer(Modifier.height(18.dp))
+                Text("Тест на MacBook по Wi-Fi", style = MaterialTheme.typography.titleMedium)
+                Text("Mac и Samsung должны быть в одной сети. Укажи IP Mac, порт 8000.",
+                    style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(value = hostInput, onValueChange = { hostInput = it },
+                    label = { Text("IP Mac (например 192.168.1.20)") },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true)
+                TextButton(onClick = {
+                    if (!LocalTestServer.setHost(appContext, hostInput)) {
+                        hostError = "Нужен локальный IPv4: 10.x, 172.16–31.x или 192.168.x"
+                    } else {
+                        // Do not send credentials issued by a different API to this server.
+                        sessionStore.clear()
+                        macHost = hostInput.trim()
+                        password = ""
+                        token = null
+                        hostError = ""
+                    }
+                }) { Text("Подключить сервер на Mac") }
+                if (macHost.isNotEmpty()) {
+                    Text("Активный сервер: http://$macHost:8000/",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                if (hostError.isNotBlank()) {
+                    Text(hostError, color = MaterialTheme.colorScheme.error)
+                }
+            }
         }
     } else {
         val activeToken = token ?: return
