@@ -5,6 +5,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.LocalDate
@@ -61,7 +63,18 @@ fun localVisitTime(utcOrOffset: String): String =
         .format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
 
 class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
-    private suspend fun call(
+    private var secureStore: SecureSessionStore? = null
+    private val sessionMutex = Mutex()
+    @Volatile private var currentAccess: String? = null
+    var onSessionExpired: (() -> Unit)? = null
+
+    fun attachSessionStore(store: SecureSessionStore) {
+        secureStore = store
+    }
+
+    private class ApiStatusError(val status: Int) : IOException("Сервер вернул код $status")
+
+    private suspend fun send(
         method: String, path: String, payload: JSONObject? = null, token: String? = null,
     ): JSONObject = withContext(Dispatchers.IO) {
         val connection = (URL(base + path).openConnection() as HttpURLConnection).apply {
@@ -83,12 +96,77 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val content = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (status !in 200..299) {
-                // No credentials or request body are included in error messages.
-                throw IOException("Сервер вернул код $status")
+                // Neither passwords nor refresh tokens enter exception messages.
+                throw ApiStatusError(status)
             }
-            JSONObject(content)
+            if (content.isBlank()) JSONObject() else JSONObject(content)
         } finally {
             connection.disconnect()
+        }
+    }
+
+    private fun acceptTokens(response: JSONObject): String {
+        val access = response.getString("access_token")
+        val refresh = response.getString("refresh_token")
+        // Durable token first: never allow an in-memory session without its refresh credential.
+        secureStore?.save(refresh)
+        currentAccess = access
+        return access
+    }
+
+    private suspend fun renewSession(): String? {
+        val stored = secureStore?.load() ?: return null
+        return try {
+            acceptTokens(send("POST", "auth/refresh",
+                JSONObject().put("refresh_token", stored)))
+        } catch (err: ApiStatusError) {
+            if (err.status == 401 || err.status == 422) {
+                secureStore?.clear()
+                currentAccess = null
+                withContext(Dispatchers.Main) { onSessionExpired?.invoke() }
+            }
+            null
+        } catch (_: IOException) {
+            // Offline is not a logout: leave the encrypted refresh credential intact.
+            null
+        }
+    }
+
+    suspend fun restoreSession(): String? = sessionMutex.withLock {
+        if (secureStore?.hasSession() != true) return@withLock null
+        renewSession()
+    }
+
+    private suspend fun call(
+        method: String, path: String, payload: JSONObject? = null, token: String? = null,
+    ): JSONObject {
+        val initial = if (token == null) null else currentAccess ?: token
+        return try {
+            send(method, path, payload, initial)
+        } catch (err: ApiStatusError) {
+            if (err.status != 401 || token == null) throw err
+            val renewed = sessionMutex.withLock {
+                // Other simultaneous calls may already have rotated this device's token.
+                if (currentAccess != null && currentAccess != initial) {
+                    currentAccess
+                } else {
+                    renewSession()
+                }
+            } ?: throw err
+            send(method, path, payload, renewed)
+        }
+    }
+
+    suspend fun logout() {
+        val refresh = secureStore?.load()
+        secureStore?.clear()
+        currentAccess = null
+        if (refresh != null) {
+            try {
+                send("POST", "auth/logout", JSONObject().put("refresh_token", refresh))
+            } catch (_: IOException) {
+                // Local sign-out is immediate; remote revocation needs a live API.
+            }
         }
     }
 
@@ -158,8 +236,8 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
     }
 
     suspend fun login(user: String, password: String): String =
-        call("POST", "auth/login", JSONObject().put("username", user)
-            .put("password", password)).getString("access_token")
+        acceptTokens(send("POST", "auth/login", JSONObject().put("username", user)
+            .put("password", password)))
 
     suspend fun services(token: String): List<ServiceItem> {
         val rows = call("GET", "owner/services", token = token).getJSONArray("services")

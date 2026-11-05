@@ -1,7 +1,7 @@
 package com.stasybell.os
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.background
@@ -28,6 +28,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.Alignment
@@ -52,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
@@ -63,7 +65,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
@@ -73,9 +75,15 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MasterApp() {
-    val api = remember { ApiClient() }
+    val appContext = LocalContext.current
+    val activity = appContext as? FragmentActivity
+    val sessionStore = remember { SecureSessionStore(appContext) }
+    val api = remember { ApiClient().apply { attachSessionStore(sessionStore) } }
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf<String?>(null) }
+    var checkingSession by remember { mutableStateOf(true) }
+    var biometricEnabled by remember { mutableStateOf(sessionStore.biometricUnlockEnabled) }
+    var biometricMessage by remember { mutableStateOf("") }
     var user by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
@@ -90,6 +98,10 @@ fun MasterApp() {
     val today = LocalDate.now(ZoneId.of("Europe/Moscow"))
     val view = LocalView.current
     SideEffect {
+        api.onSessionExpired = {
+            token = null
+            error = "Сессия завершена. Войдите снова."
+        }
         val activity = view.context as? android.app.Activity
         if (activity != null) WindowCompat.getInsetsController(activity.window, view)
             .isAppearanceLightStatusBars = token == null || page !in listOf("Сегодня", "Календарь", "Финансы")
@@ -124,11 +136,26 @@ fun MasterApp() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        val allowed = !biometricEnabled || (activity != null && confirmFingerprint(activity))
+        if (allowed) {
+            token = api.restoreSession()
+        }
+        checkingSession = false
+    }
+
     LaunchedEffect(token) {
         token?.let { refresh(it) }
     }
 
-    if (token == null) {
+    if (checkingSession) {
+        Column(modifier = Modifier.fillMaxSize().background(StasyColors.Canvas).padding(24.dp),
+            verticalArrangement = Arrangement.Center) {
+            Text("STASY BELL", style = MaterialTheme.typography.titleLarge,
+                color = StasyColors.Primary)
+            Text("Проверка входа…")
+        }
+    } else if (token == null) {
         Column(
             modifier = Modifier.fillMaxSize().background(StasyColors.Canvas).verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.Center,
@@ -167,7 +194,7 @@ fun MasterApp() {
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Войти") }
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-            Text("Учётные данные не сохраняются на устройстве.")
+            Text("Пароль не сохраняется. Сессия защищена Android Keystore.")
         }
     } else {
         val activeToken = token ?: return
@@ -191,7 +218,10 @@ fun MasterApp() {
                         IconButton(onClick = { refresh(activeToken) }, enabled = !busy) {
                             Icon(Icons.Default.Refresh, "Обновить", tint = Color.White, modifier = Modifier.size(18.dp))
                         }
-                        IconButton(onClick = { token = null; cash = null; page = "Сегодня" }) {
+                        IconButton(onClick = {
+                            token = null; cash = null; page = "Сегодня"
+                            scope.launch { api.logout() }
+                        }) {
                             Icon(Icons.Default.ExitToApp, "Выход", tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                     }
@@ -240,7 +270,10 @@ fun MasterApp() {
                     IconButton(onClick = { refresh(activeToken) }, enabled = !busy) {
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить")
                     }
-                    IconButton(onClick = { token = null; cash = null; page = "Сегодня" }) {
+                    IconButton(onClick = {
+                            token = null; cash = null; page = "Сегодня"
+                            scope.launch { api.logout() }
+                        }) {
                         Icon(Icons.Default.ExitToApp, contentDescription = "Выход")
                     }
                 }
@@ -285,6 +318,35 @@ fun MasterApp() {
                     }
                     "Настройки" -> {
                         Text("Настройки", style = MaterialTheme.typography.titleLarge)
+                        AppCard {
+                            Text("Защита входа", style = MaterialTheme.typography.titleMedium)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Разблокировка отпечатком", modifier = Modifier.weight(1f))
+                                Switch(checked = biometricEnabled, onCheckedChange = { enabled ->
+                                    if (!enabled) {
+                                        sessionStore.biometricUnlockEnabled = false
+                                        biometricEnabled = false
+                                        biometricMessage = ""
+                                    } else {
+                                        scope.launch {
+                                            if (activity != null && confirmFingerprint(activity)) {
+                                                sessionStore.biometricUnlockEnabled = true
+                                                biometricEnabled = true
+                                                biometricMessage = "Включено для следующих запусков."
+                                            } else {
+                                                biometricMessage = "Отпечаток недоступен или не подтверждён."
+                                            }
+                                        }
+                                    }
+                                })
+                            }
+                            Text("Пароль вводится один раз. Сессия обновляется автоматически.",
+                                style = MaterialTheme.typography.bodySmall)
+                            if (biometricMessage.isNotBlank()) {
+                                Text(biometricMessage, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                         AppCard {
                             Text("Интеграции и резервные копии", style = MaterialTheme.typography.titleMedium)
                             Text("Состояние подключений и резервных копий в приложении пока не отображается.")
