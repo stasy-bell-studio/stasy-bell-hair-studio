@@ -274,3 +274,18 @@ test("policy link supports keyboard navigation and a return to home", async ({ p
   await page.getByRole("link", { name: "На главную" }).click();
   await expect(page.getByRole("heading", { name: "Stasy Bell", level: 1 })).toBeVisible();
 });
+
+test("new photographic visual system renders 20 hair looks, hero and Nastya portrait", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".hero-media img")).toHaveAttribute("src", "/visual/nastya-hero.webp");
+  await expect(page.locator(".about-portrait img")).toHaveAttribute("src", "/visual/nastya-about.webp");
+  await expect(page.getByRole("heading", { name: "Эстетика волос" })).toBeVisible();
+  const gallery = page.locator("#looks");
+  await expect(gallery.locator(".gallery-tile")).toHaveCount(20);
+  await gallery.scrollIntoViewIfNeeded();
+  await expect.poll(async () => page.locator("#looks img").first().evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await page.screenshot({ path: test.info().outputPath("v2-visual-desktop.png"), fullPage: true });
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await page.screenshot({ path: test.info().outputPath("v2-visual-mobile.png"), fullPage: true });
+});

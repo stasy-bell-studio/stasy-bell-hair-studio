@@ -1177,3 +1177,35 @@ img {
   .privacy-wordmark { font-size: 23px; }
   .privacy-article h2 { font-size: 22px; }
 }
+
+/* Stasy Bell photographic editorial — visual content only, pricing and booking unchanged. */
+.hero-media picture { display: block; width: 100%; height: 100%; }
+.hero-media picture img { width: 100%; height: 100%; object-fit: cover; object-position: center 21%; }
+.about-grid { grid-template-columns: minmax(0, .9fr) minmax(0, 1fr) minmax(220px, .82fr); align-items: center; gap: clamp(22px, 4vw, 55px); }
+.about-grid p { margin-bottom: 16px; font-size: 16px; }
+.about-signature { display: inline-block; margin-top: 10px; font: italic 22px/1.2 var(--font-editorial); color: var(--web-primary-deep); }
+.about-portrait { margin: 0; border-radius: var(--radius-panel); background: var(--web-cream); overflow: hidden; box-shadow: var(--web-shadow-soft); }
+.about-portrait img { display:block; width:100%; height: 340px; object-fit:cover; object-position:center 18%; }
+.gallery-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.gallery-tile { margin: 0; min-width:0; overflow:hidden; border-radius: 12px; border: 1px solid var(--web-border); background: var(--web-canvas-soft); box-shadow: var(--web-shadow-card); }
+.gallery-tile img { width:100%; height: 270px; object-fit:cover; border:0; border-radius:0; transition:transform 300ms ease; }
+.gallery-tile:hover img { transform:scale(1.035); }
+.gallery-tile figcaption { display:flex; align-items:center; gap:12px; min-height:62px; padding: 12px 14px; color:var(--web-forest); font-size:13px; font-weight:600; line-height:1.35; }
+.gallery-tile figcaption span { font: 500 18px/1 var(--font-editorial); color:var(--web-primary); }
+@media (max-width: 980px) {
+  .about-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .about-portrait { grid-column: 2; grid-row: 1 / span 2; }
+  .gallery-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .gallery-tile img { height:240px; }
+}
+@media (max-width: 760px) {
+  .hero-media picture img { object-position:center 24%; }
+  .about-grid { grid-template-columns:minmax(0,1fr); }
+  .about-portrait { grid-column:auto; grid-row:auto; }
+  .about-portrait img { height: 360px; object-position:center 22%; }
+  .gallery-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .gallery-tile img { height:clamp(180px, 52vw, 300px); }
+  .gallery-tile figcaption { min-height:56px; padding:10px; gap:7px; font-size:11px; }
+  .gallery-tile figcaption span { font-size:15px; }
+}
+@media (max-width: 380px) { .gallery-grid { gap:9px; } .gallery-tile img { height: 190px; } .gallery-tile figcaption { padding:9px 7px; } }

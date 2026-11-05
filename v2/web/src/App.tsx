@@ -3,10 +3,14 @@ import { API_URL, bookableDays, clearPendingHold, clockMoscow, formatMoscowNow, 
 import { priceGroups } from "./prices";
 import { privacyReady } from "./legal";
 import PrivacyPage from "./PrivacyPage";
-import masterPhoto from "../../../src/assets/master-photo.png";
-import portfolioOne from "../../../src/assets/portfolio-1.png";
-import portfolioTwo from "../../../src/assets/portfolio-2.png";
-import portfolioThree from "../../../src/assets/portfolio-3.png";
+const visualPath = (name: string) => `/visual/${name}.webp`;
+const hairLookNames = [
+  "Шёлковая гладкость", "Мягкий блонд", "Шоколадный блеск", "Карамельные переливы",
+  "Воздушные локоны", "Холодный беж", "Мягкий объём", "Медные оттенки",
+  "Современный лоб", "Крупные волны", "Гладкая текстура", "Светлые пряди",
+  "Глубина оттенка", "Движение волос", "Линии и сияние", "Сияние блонда",
+  "Фактура локонов", "Тёплые блики", "Лёгкость формы", "Блеск и объём",
+];
 import { ArrowRight, Leaf, Sparkles, Heart, Scissors } from "lucide-react";
 
 const contactTelegram = "https://t.me/Stasy10";
@@ -384,7 +388,7 @@ function App() {
       <header className="site-header">
         <nav className="container navigation" aria-label="Основная навигация">
           <a href="#home" className="wordmark"><Leaf aria-hidden="true" strokeWidth={1.2} /><span>Stasy <em>Bell</em><small>HAIR STUDIO</small></span></a>
-          <div className="nav-links"><a href="#about">О мастере</a><a href="#services">Услуги и цены</a><a href="#contacts">Контакты</a></div>
+          <div className="nav-links"><a href="#about">О мастере</a><a href="#services">Услуги и цены</a><a href="#looks">Эстетика волос</a><a href="#contacts">Контакты</a></div>
           <a href="#booking" className="button primary nav-book">Записаться</a>
         </nav>
       </header>
@@ -400,7 +404,10 @@ function App() {
               <span className="hero-footnote">Санкт-Петербург · ул. Ольги Берггольц, 9, корп. 2</span>
             </div>
             <div className="hero-media">
-              <img src={masterPhoto} alt="Мастер Stasy Bell" />
+              <picture>
+                <source media="(max-width: 760px)" srcSet={visualPath("nastya-mobile")} />
+                <img src={visualPath("nastya-hero")} alt="Настя — мастер студии Stasy Bell" fetchPriority="high" />
+              </picture>
               <div className="floating-note"><span>ВАШ МАСТЕР</span>Красота начинается с заботы.</div>
             </div>
           </div>
@@ -417,7 +424,7 @@ function App() {
             <div className="preview-grid">
               {priceGroups.slice(0, 3).map((group, index) => (
                 <a className="preview-card" href={`#price-group-${index}`} key={group.title}>
-                  <img src={[portfolioTwo, portfolioOne, portfolioThree][index]} alt="Пример ухода из портфолио Stasy Bell" />
+                  <img src={[visualPath("hair-01"), visualPath("hair-02"), visualPath("hair-06")][index]} alt={["Шёлковая гладкость волос", "Мягкие волны светлых волос", "Сияние ухоженных волос"][index]} loading="lazy" decoding="async" />
                   <div><h3>{group.title}</h3><p>{group.description}</p>
                     <span className="preview-price">от {group.items.find((item) => !item.addOnOnly)?.price}<ArrowRight size={20} aria-hidden="true" /></span>
                   </div>
@@ -429,7 +436,8 @@ function App() {
         <section className="section intro-section" id="about">
           <div className="container about-grid">
             <div><span className="eyebrow">МОЯ ФИЛОСОФИЯ</span><h2>У каждой истории волос — свой подход.</h2></div>
-            <div><p>Уход — это не конвейер. Перед процедурой важно понять состояние и особенности волос, чтобы подобрать решение под вас.</p><p>Сосредоточимся на том, что действительно нужно вашим волосам.</p></div>
+            <div className="about-copy"><p>Уход — это не конвейер. Перед процедурой важно понять состояние и особенности волос, чтобы подобрать решение под вас.</p><p>Сосредоточимся на том, что действительно нужно вашим волосам.</p><span className="about-signature">Настя · Stasy Bell</span></div>
+            <div className="about-portrait"><img src={visualPath("nastya-about")} alt="Настя в студийном образе" loading="lazy" decoding="async" /></div>
           </div>
         </section>
         <section className="section services-section" id="services">
@@ -456,10 +464,28 @@ function App() {
             <p className="price-disclaimer">Стоимость и длительность окончательно согласуются при выборе процедуры.</p>
           </div>
         </section>
-        <section className="gallery-section section">
+        <section className="gallery-section section" id="looks">
           <div className="container">
-            <div className="section-heading"><span className="eyebrow">ДО И ПОСЛЕ</span><h2>Результат в деталях</h2></div>
-            <div className="gallery-grid"><img src={portfolioOne} alt="Пример результата ухода за волосами" loading="lazy"/><img src={portfolioTwo} alt="Результат процедуры Stasy Bell" loading="lazy"/></div>
+            <div className="section-heading">
+              <span className="eyebrow">ВИЗУАЛЬНАЯ КОЛЛЕКЦИЯ</span>
+              <h2>Эстетика волос</h2>
+              <p>Цвет. Свет. Текстура. Детали, в которые хочется всматриваться.</p>
+            </div>
+            <div className="gallery-grid">
+              {hairLookNames.map((label, index) => (
+                <figure className="gallery-tile" key={index}>
+                  <img
+                    src={visualPath(`hair-${String(index + 1).padStart(2, "0")}`)}
+                    alt={label}
+                    loading="lazy"
+                    decoding="async"
+                    width={620}
+                    height={775}
+                  />
+                  <figcaption><span>{String(index + 1).padStart(2, "0")}</span>{label}</figcaption>
+                </figure>
+              ))}
+            </div>
           </div>
         </section>
         <Booking />
