@@ -299,7 +299,7 @@ fun MasterApp() {
                         SchedulePanel(api, activeToken) { refresh(activeToken) }
                     }
                     "Клиенты" -> {
-                        ClientsPanel(clients, visits, services)
+                        ClientsPanel(api, activeToken, clients) { refresh(activeToken) }
                     }
                     "Услуги" -> {
                         ServicesPanel(api, activeToken, services) { refresh(activeToken) }
@@ -310,13 +310,7 @@ fun MasterApp() {
                     "Материалы" -> {
                         MaterialsPanel(api, activeToken)
                     }
-                    "Отчёты" -> {
-                        Text("Отчёты", style = MaterialTheme.typography.titleLarge)
-                        AppCard {
-                            Text("Подробные отчёты пока недоступны.")
-                            Text("Фактические поступления и расходы доступны в разделе «Финансы».")
-                        }
-                    }
+                    "Отчёты" -> { ReportsPanel(api, activeToken) }
                     "Настройки" -> {
                         Text("Настройки", style = MaterialTheme.typography.titleLarge)
                         AppCard {
@@ -364,12 +358,12 @@ fun MasterApp() {
                     }
                     "+ Запись" -> {
                         ManualBookingForm(
-                            services = services, busy = busy,
-                            onCreate = { name, service, day, clock ->
+                            services = services, clients = clients, busy = busy,
+                            onCreate = { name, existingClientId, service, day, clock ->
                                 scope.launch {
                                     busy = true
                                     try {
-                                        api.manualBooking(activeToken, name, service, day, clock)
+                                        api.manualBooking(activeToken, name, existingClientId, service, day, clock)
                                         error = ""
                                         page = "Календарь"
                                         refresh(activeToken)
@@ -390,32 +384,115 @@ fun MasterApp() {
 }
 
 @Composable
-fun ClientsPanel(clients: List<ClientItem>, visits: List<VisitItem>, services: List<ServiceItem>) {
+fun ClientsPanel(
+    api: ApiClient, token: String, clients: List<ClientItem>,
+    onChanged: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var selectedId by remember { mutableStateOf<String?>(null) }
+    var history by remember { mutableStateOf<List<ClientHistoryVisit>>(emptyList()) }
+    var total by remember { mutableStateOf(0) }
+    var hasMore by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf(false) }
+    var clientName by remember { mutableStateOf("") }
+    var clientPhone by remember { mutableStateOf("") }
     val selected = clients.find { it.id == selectedId }
     val filtered = clients.filter {
         it.name.contains(query.trim(), ignoreCase = true) ||
             (it.phone?.contains(query.trim(), ignoreCase = true) == true)
     }
+
+    LaunchedEffect(selectedId, token) {
+        history = emptyList()
+        total = 0
+        hasMore = false
+        errorMessage = ""
+        editing = false
+        val id = selectedId ?: return@LaunchedEffect
+        loading = true
+        try {
+            val data = api.clientHistory(token, id)
+            history = data.visits
+            total = data.total
+            hasMore = data.hasMore
+        } catch (ex: Exception) {
+            errorMessage = "Не удалось получить историю: ${ex.message}"
+        } finally {
+            loading = false
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (selected != null) {
             Text("Карточка клиента", style = MaterialTheme.typography.titleLarge)
             AppCard {
                 Text(selected.name, style = MaterialTheme.typography.titleMedium)
                 Text(selected.phone ?: "Телефон не указан")
-            }
-            Text("Записи на ближайшие 8 дней", style = MaterialTheme.typography.titleMedium)
-            val clientVisits = visits.filter { it.clientId == selected.id }
-            if (clientVisits.isEmpty()) Text("Записей за этот период нет.")
-            clientVisits.forEach { visit ->
-                val service = services.find { it.id == visit.serviceId }?.name ?: "Услуга не указана"
-                AppCard {
-                    Text("${visit.localTime} · $service")
-                    Text(visitStatusLabel(visit.status), style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = {
+                    clientName = selected.name
+                    clientPhone = selected.phone.orEmpty()
+                    editing = !editing
+                }) { Text(if (editing) "Отмена изменений" else "Изменить клиента") }
+                if (editing) {
+                    OutlinedTextField(value = clientName, onValueChange = { clientName = it },
+                        label = { Text("Имя клиента") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = clientPhone, onValueChange = { clientPhone = it },
+                        label = { Text("Телефон") }, modifier = Modifier.fillMaxWidth())
+                    StasyButton(enabled = !loading && clientName.isNotBlank(), onClick = {
+                        loading = true
+                        val target = selected.id
+                        scope.launch {
+                            try {
+                                api.updateClient(token, target, clientName.trim(), clientPhone.trim())
+                                editing = false
+                                errorMessage = ""
+                                onChanged()
+                            } catch (ex: Exception) {
+                                errorMessage = "Не удалось сохранить клиента: ${ex.message}"
+                            } finally { loading = false }
+                        }
+                    }) { Text("Сохранить клиента") }
                 }
             }
-            Text("Полная история клиента пока недоступна.", style = MaterialTheme.typography.bodySmall)
+            Text("История визитов · $total", style = MaterialTheme.typography.titleMedium)
+            if (loading) Text("Загрузка…")
+            if (errorMessage.isNotBlank()) Text(errorMessage, color = MaterialTheme.colorScheme.error)
+            if (!loading && history.isEmpty() && errorMessage.isBlank()) {
+                Text("Визитов пока нет.")
+            }
+            history.forEach { visit ->
+                AppCard {
+                    Text(localVisitTime(visit.startsAt), style = MaterialTheme.typography.titleMedium)
+                    Text(visit.service + (visit.variant?.let { " · $it" } ?: ""))
+                    Text(visitStatusLabel(visit.status), style = MaterialTheme.typography.bodySmall)
+                    visit.quotedKopecks?.let { Text("Стоимость по записи: ${formatCash(it)}") }
+                    Text("Получено по связанным операциям: ${formatCash(visit.receivedKopecks)}",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (hasMore) {
+                StasyButton(enabled = !loading, onClick = {
+                    loading = true
+                    val target = selected.id
+                    val offset = history.size
+                    scope.launch {
+                        try {
+                            val next = api.clientHistory(token, target, offset)
+                            if (selectedId == target) {
+                                history = history + next.visits
+                                hasMore = next.hasMore
+                                total = next.total
+                                errorMessage = ""
+                            }
+                        } catch (ex: Exception) {
+                            errorMessage = "Ошибка загрузки продолжения: ${ex.message}"
+                        } finally { loading = false }
+                    }
+                }) { Text("Показать ещё") }
+            }
             TextButton(onClick = { selectedId = null }) { Text("Назад к клиентам") }
         } else {
             Text("Клиенты · ${clients.size}", style = MaterialTheme.typography.titleLarge)
@@ -429,7 +506,9 @@ fun ClientsPanel(clients: List<ClientItem>, visits: List<VisitItem>, services: L
                 AppCard {
                     Text(client.name, style = MaterialTheme.typography.titleMedium)
                     client.phone?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                    TextButton(onClick = { selectedId = client.id }) { Text("Подробнее · ${client.name}") }
+                    TextButton(onClick = { selectedId = client.id }) {
+                        Text("Подробнее · ${client.name}")
+                    }
                 }
             }
         }
@@ -438,10 +517,12 @@ fun ClientsPanel(clients: List<ClientItem>, visits: List<VisitItem>, services: L
 
 @Composable
 fun ManualBookingForm(
-    services: List<ServiceItem>, busy: Boolean,
-    onCreate: (String, String, String, String) -> Unit,
+    services: List<ServiceItem>, clients: List<ClientItem>, busy: Boolean,
+    onCreate: (String, String?, String, String, String) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
+    var existingClientId by remember { mutableStateOf<String?>(null) }
+    var clientPickerOpen by remember { mutableStateOf(false) }
     var date by remember { mutableStateOf(LocalDate.now(ZoneId.of("Europe/Moscow")).format(studioDateFormat)) }
     var clock by remember { mutableStateOf("10:00") }
     var selected by remember { mutableStateOf<ServiceItem?>(null) }
@@ -451,9 +532,37 @@ fun ManualBookingForm(
         Text("Ручная запись", style = MaterialTheme.typography.titleLarge)
         Text("Подтверждение по телефону и через бота не требуется.")
         OutlinedTextField(
-            value = name, onValueChange = { name = it }, label = { Text("Имя клиента") },
-            modifier = Modifier.fillMaxWidth(),
+            value = name, onValueChange = { name = it; existingClientId = null },
+            label = { Text("Имя клиента") }, modifier = Modifier.fillMaxWidth(),
         )
+        TextButton(onClick = { clientPickerOpen = true }) {
+            Text(if (existingClientId == null) "Выбрать существующего клиента"
+                else "Существующий клиент выбран")
+        }
+        DropdownMenu(expanded = clientPickerOpen,
+            onDismissRequest = { clientPickerOpen = false }) {
+            val matches = clients.filter {
+                name.isBlank() || it.name.contains(name.trim(), ignoreCase = true)
+            }.take(30)
+            matches.forEach { client ->
+                DropdownMenuItem(
+                    text = { Text(client.name + (client.phone?.let { " · $it" } ?: "")) },
+                    onClick = {
+                        name = client.name
+                        existingClientId = client.id
+                        clientPickerOpen = false
+                    },
+                )
+            }
+            if (existingClientId != null) {
+                DropdownMenuItem(text = { Text("Создать нового клиента") },
+                    onClick = { existingClientId = null; clientPickerOpen = false })
+            }
+            if (matches.isEmpty()) {
+                DropdownMenuItem(text = { Text("Совпадений нет — создайте нового клиента") },
+                    onClick = { clientPickerOpen = false })
+            }
+        }
         StasyButton(onClick = { expanded = true }) {
             Text(selected?.let { "${it.name} · ${it.variant ?: ""}" } ?: "Выбрать услугу")
         }
@@ -476,7 +585,7 @@ fun ManualBookingForm(
         StasyButton(
             enabled = !busy && name.isNotBlank() && selected != null && parseStudioDate(date) != null,
             onClick = { selected?.let { service -> parseStudioDate(date)?.let { day ->
-                onCreate(name.trim(), service.id, day.toString(), clock)
+                onCreate(name.trim(), existingClientId, service.id, day.toString(), clock)
             } } },
         ) { Text("Создать подтверждённую запись") }
     }
