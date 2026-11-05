@@ -61,6 +61,9 @@ def test_hold_45_token_15_and_idempotent_messenger_confirmation(
     held = res.json()
     assert held["status"] == "pending_channel"
     assert held["channel"] == "telegram"
+    assert held["service_name"] == "Test only"
+    assert held["service_variant"] is None
+    assert datetime.fromisoformat(held["starts_at"]).date() == day
     now = datetime.now(UTC)
     assert timedelta(minutes=44) < datetime.fromisoformat(held["hold_until"]) - now <= timedelta(minutes=45)
     assert timedelta(minutes=14) < (

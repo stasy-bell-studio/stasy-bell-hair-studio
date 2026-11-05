@@ -310,11 +310,16 @@ function Booking() {
           )}
           {configured && hold && (
             <div className="hold-detail" role="status">
-              <span className="eyebrow">ВРЕМЕННАЯ БРОНЬ</span>
+              <span className="eyebrow">{holdStatus === "confirmed" ? "ПОДТВЕРЖДЁННАЯ ЗАПИСЬ" :
+                holdStatus === "pending_channel" ? "ВРЕМЕННАЯ БРОНЬ" : "БРОНЬ ЗАВЕРШЕНА"}</span>
               <h3>{holdStatus === "confirmed" ? "Запись подтверждена!" :
                 holdStatus === "pending_channel" ? "Осталось подтвердить запись" :
                 holdStatus === "expired" ? "Время брони истекло" : "Бронь завершена"}</h3>
-              {holdStatus === "confirmed" ? <p>Подтверждение получено. Ждём вас!</p> :
+              {(hold.starts_at || hold.service_name) && <p className="booking-visit-summary">
+                {hold.service_name && <strong>{hold.service_name}{hold.service_variant ? " · " + hold.service_variant : ""}</strong>}
+                {hold.starts_at && <span>{clockMoscow(hold.starts_at)} · Санкт-Петербург</span>}
+              </p>}
+              {holdStatus === "confirmed" ? <p>Подтверждение получено. Ждём вас по адресу: {studioAddress}.</p> :
                 holdStatus === "pending_channel" ?
                 <p>Интервал удерживается до <strong>{clockMoscow(hold.hold_until)}</strong>.</p> :
                 <p>Выберите другое свободное время.</p>}

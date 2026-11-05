@@ -15,6 +15,9 @@ export interface Hold {
   confirmation_token_expires_at: string;
   channel_confirmation_code: string;
   hold_secret: string;
+  starts_at?: string;
+  service_name?: string;
+  service_variant?: string | null;
   channel_link?: string;
   channel_instruction?: string;
 }

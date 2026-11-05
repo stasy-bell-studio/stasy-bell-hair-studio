@@ -856,6 +856,20 @@ img {
   margin-top: 12px;
 }
 
+.booking-visit-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: var(--web-mist);
+  color: var(--web-forest);
+  font-size: 14px;
+}
+
+.booking-visit-summary strong { font-weight: 600; }
+.booking-visit-summary span { color: var(--web-body); }
+
 .hold-detail code {
   overflow-wrap: anywhere;
   padding: 4px 7px;

@@ -65,6 +65,9 @@ async function mockPublicApi(page: Page, finalStatus: "pending_channel" | "confi
           confirmation_token_expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
           channel_confirmation_code: "123456",
           hold_secret: "synthetic-test-secret",
+          starts_at: bookingBody?.starts_at,
+          service_name: "Тестовая услуга",
+          service_variant: "до плеч",
           channel_link: "https://t.me/example",
           channel_instruction: "Синтетический тест подтверждения записи.",
         },
@@ -173,6 +176,8 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   api.releaseConfirmation();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Запись подтверждена!" })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText("ПОДТВЕРЖДЁННАЯ ЗАПИСЬ")).toBeVisible();
+  await expect(page.getByText(/Тестовая услуга/)).toBeVisible();
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = "auto";
     window.scrollTo(0, 0);

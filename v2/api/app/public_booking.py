@@ -112,12 +112,17 @@ def issue_token(db: Session, entry: CalendarEntry, channel: str, now: datetime) 
     return raw_token
 
 
-def response_for_hold(entry: CalendarEntry, channel: str, token: str, access: str) -> dict:
+def response_for_hold(
+    entry: CalendarEntry, channel: str, token: str, access: str, service: Service,
+) -> dict:
     result = {
         "id": entry.id, "status": entry.status, "channel": channel,
         "hold_until": entry.hold_until, "confirmation_token_expires_at":
         min(datetime.now(UTC) + timedelta(minutes=TOKEN_MINUTES), entry.hold_until),
         "channel_confirmation_code": token, "hold_secret": access,
+        "starts_at": entry.starts_at,
+        "service_name": service.name,
+        "service_variant": service.variant,
     }
     if channel == "telegram":
         username = os.environ.get("TELEGRAM_BOT_USERNAME", "").strip("@")
@@ -278,7 +283,7 @@ def create_hold(
         if getattr(exc.orig, "sqlstate", None) == "23P01":
             raise HTTPException(status_code=409, detail="Time interval already occupied") from exc
         raise
-    return response_for_hold(entry, data.channel, token, access)
+    return response_for_hold(entry, data.channel, token, access, service)
 
 
 @router.post("/public/holds/{entry_id}/reissue")
@@ -307,7 +312,8 @@ def reissue(
     client = db.get(Client, entry.client_id)
     token = issue_token(db, entry, client.preferred_channel, now)
     db.commit()
-    return response_for_hold(entry, client.preferred_channel, token, data.hold_secret)
+    service = db.get(Service, entry.service_id)
+    return response_for_hold(entry, client.preferred_channel, token, data.hold_secret, service)
 
 
 def confirm_token(db: Session, raw: str, channel: str, provider_user_id: str) -> dict:
