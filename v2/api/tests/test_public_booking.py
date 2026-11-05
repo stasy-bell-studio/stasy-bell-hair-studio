@@ -253,3 +253,24 @@ def test_channel_readiness_prevents_dead_holds(api, public_setup, monkeypatch):
     assert response.status_code == 503
     # This failed channel must not reserve the interval.
     assert submit(api, service, day, channel="telegram").status_code == 201
+
+
+def test_public_available_days_shows_only_real_open_days(api, public_setup):
+    service, day = public_setup
+    response = api.get("/public/available-days", params={"service_id": service})
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["timezone"] == "Europe/Moscow"
+    assert len(payload["days"]) == 1
+    assert payload["days"][0]["day"] == day.isoformat()
+    before = payload["days"][0]["slot_count"]
+    assert before > 0
+
+    held = submit(api, service, day, hour=10)
+    assert held.status_code == 201, held.text
+    after = api.get("/public/available-days", params={"service_id": service}).json()
+    assert 0 < after["days"][0]["slot_count"] < before
+
+    assert api.get("/public/available-days", params={
+        "service_id": "00000000-0000-4000-8000-000000000000"
+    }).status_code == 404

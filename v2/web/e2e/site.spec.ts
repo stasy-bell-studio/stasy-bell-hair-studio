@@ -29,6 +29,23 @@ async function mockPublicApi(page: Page, finalStatus: "pending_channel" | "confi
       return;
     }
 
+    if (url.pathname === "/public/available-days") {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Moscow", year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(new Date());
+      const read = (kind: string) => parts.find((p) => p.type === kind)?.value ?? "";
+      const today = `${read("year")}-${read("month")}-${read("day")}`;
+      const [year, month, day] = today.split("-").map(Number);
+      const dayIn = (n: number) =>
+        new Date(Date.UTC(year, month - 1, day + n)).toISOString().slice(0, 10);
+      await route.fulfill({
+        json: { timezone: "Europe/Moscow", days: [
+          { day: dayIn(7), slot_count: 9 }, { day: dayIn(14), slot_count: 6 },
+        ] },
+      });
+      return;
+    }
+
     if (url.pathname === "/public/availability") {
       const day = url.searchParams.get("day") ?? "2026-11-10";
       await route.fulfill({ json: { starts_at: [`${day}T07:00:00Z`] } });
@@ -103,6 +120,8 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   await page.goto("/#booking");
 
   await page.getByLabel("Процедура").selectOption("synthetic-service");
+  await expect(page.getByRole("group", { name: "Календарь свободных дат" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Свободных окон: 9/ })).toBeEnabled();
   const dateField = page.getByLabel("Дата");
   const minimumDate = await dateField.getAttribute("min");
   const maximumDate = await dateField.getAttribute("max");

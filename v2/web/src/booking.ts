@@ -109,3 +109,11 @@ export function readPendingHold(): Hold | null {
     return null;
   }
 }
+
+// Date-only arithmetic in UTC preserves the studio calendar across DST on client devices.
+export function bookableDays(today: string = formatMoscowNow()): string[] {
+  const [year, month, day] = today.split("-").map(Number);
+  return Array.from({ length: 30 }, (_, offset) =>
+    new Date(Date.UTC(year, month - 1, day + offset)).toISOString().slice(0, 10),
+  );
+}

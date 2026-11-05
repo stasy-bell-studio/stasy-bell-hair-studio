@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { API_URL, clearPendingHold, clockMoscow, formatMoscowNow, lastBookableDay, readPendingHold, requestApi, savePendingHold, type Hold, type Service } from "./booking";
+import { API_URL, bookableDays, clearPendingHold, clockMoscow, formatMoscowNow, lastBookableDay, readPendingHold, requestApi, savePendingHold, type Hold, type Service } from "./booking";
 import { priceGroups } from "./prices";
 import masterPhoto from "../../../src/assets/master-photo.png";
 import portfolioOne from "../../../src/assets/portfolio-1.png";
@@ -24,6 +24,9 @@ function Booking() {
   const [serviceId, setServiceId] = useState("");
   const [day, setDay] = useState(formatMoscowNow());
   const [slots, setSlots] = useState<string[]>([]);
+  const [openDays, setOpenDays] = useState<{ day: string; slot_count: number }[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState(false);
   const [slot, setSlot] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -55,6 +58,29 @@ function Booking() {
     }).finally(() => { if (!stale) setCatalogLoading(false); });
     return () => { stale = true; };
   }, [configured, catalogRetry]);
+
+  useEffect(() => {
+    setOpenDays([]);
+    setCalendarError(false);
+    if (!serviceId || !configured) {
+      setCalendarLoading(false);
+      return;
+    }
+    let stale = false;
+    setCalendarLoading(true);
+    const params = new URLSearchParams({ service_id: serviceId });
+    requestApi<{ days: { day: string; slot_count: number }[] }>("/public/available-days?" + params)
+      .then((response) => {
+        if (!stale) {
+          setOpenDays(response.days);
+          setDay((current) => response.days.some((item) => item.day === current)
+            ? current : response.days[0]?.day ?? formatMoscowNow());
+        }
+      })
+      .catch(() => { if (!stale) setCalendarError(true); })
+      .finally(() => { if (!stale) setCalendarLoading(false); });
+    return () => { stale = true; };
+  }, [serviceId, configured, availabilityRevision]);
 
   useEffect(() => {
     setSlots([]);
@@ -169,6 +195,12 @@ function Booking() {
   }
 
   const selectedService = services.find((item) => item.id === serviceId);
+  const dates = bookableDays();
+  const calendarOffset = (new Date(dates[0] + "T12:00:00Z").getUTCDay() + 6) % 7;
+  const availableByDay = new Map(openDays.map((item) => [item.day, item.slot_count]));
+  const readableDay = (date: string) => new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "UTC", day: "numeric", month: "long", weekday: "long",
+  }).format(new Date(date + "T12:00:00Z"));
 
   return (
     <section className="booking-section section" id="booking">
@@ -211,6 +243,35 @@ function Booking() {
                 Длительность: {selectedService.duration_minutes} мин
                 {selectedService.price_kopecks != null && <> · Цена по записи: {(selectedService.price_kopecks / 100).toLocaleString("ru-RU")} ₽</>}
               </p>}
+              <span className="field-label">Свободные даты</span>
+              <div className="booking-calendar" role="group" aria-label="Календарь свободных дат">
+                <div className="booking-weekdays" aria-hidden="true">
+                  {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((label) => <span key={label}>{label}</span>)}
+                </div>
+                <div className="booking-day-grid">
+                  {Array.from({ length: calendarOffset }, (_, index) => <span key={`empty-${index}`} aria-hidden="true" />)}
+                  {dates.map((date) => {
+                    const count = availableByDay.get(date) ?? 0;
+                    const selected = day === date;
+                    return (
+                      <button type="button" key={date}
+                        className={`booking-day ${selected ? "is-selected" : ""}`}
+                        aria-label={`${readableDay(date)}. ${count ? `Свободных окон: ${count}` : "Свободных окон нет"}`}
+                        aria-pressed={selected} disabled={!count || calendarLoading}
+                        onClick={() => { setDay(date); setError(""); }}>
+                        <strong>{Number(date.slice(-2))}</strong>
+                        <small>{count || "—"}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="fineprint booking-calendar-caption">
+                  {calendarLoading ? "Загружаем свободные даты…" :
+                    calendarError ? "Не удалось обновить календарь. Можно выбрать дату вручную." :
+                    openDays.length ? "Число под датой — количество свободных вариантов времени." :
+                    "На ближайшие 30 дней открытых окон пока нет."}
+                </p>
+              </div>
               <label className="field-label" htmlFor="booking-day">Дата</label>
               <input id="booking-day" type="date" min={formatMoscowNow()} max={lastBookableDay()} value={day} required
                 onChange={(e) => { setDay(e.target.value); setError(""); }} />
