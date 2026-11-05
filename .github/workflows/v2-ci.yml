@@ -119,8 +119,8 @@ jobs:
         run: npm ci
       - name: Type-check V2 only
         run: npx tsc --noEmit --project v2/web/tsconfig.json
-      - name: Test prices against live-site catalog
-        run: npx vitest run v2/web/src/prices.test.ts v2/web/src/booking.test.ts --config v2/web/vite.config.ts
+      - name: Test prices, booking safety and privacy gate
+        run: npx vitest run v2/web/src/prices.test.ts v2/web/src/booking.test.ts v2/web/src/legal.test.ts --config v2/web/vite.config.ts
       - name: Type-check browser tests
         run: npx tsc --noEmit --project v2/web/tsconfig.e2e.json
       - name: Build separate V2 site with booking disabled (no publish)
@@ -132,6 +132,11 @@ jobs:
       - name: Build V2 site for synthetic booking tests (no publish)
         env:
           VITE_API_URL: https://api.stasybell.test
+          VITE_PRIVACY_APPROVED: '1'
+          VITE_PRIVACY_OPERATOR: 'Синтетический оператор (только CI)'
+          VITE_PRIVACY_OPERATOR_ADDRESS: 'Синтетический адрес (только CI)'
+          VITE_PRIVACY_CONTACT: privacy@example.invalid
+          VITE_PRIVACY_RETENTION: 'Синтетический срок хранения только для CI'
         run: npx vite build --config v2/web/vite.config.ts
       - name: Test booking confirmation and capture responsive pages
         env:
