@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { API_URL, bookableDays, clearPendingHold, clockMoscow, formatMoscowNow, lastBookableDay, readPendingHold, requestApi, savePendingHold, type Hold, type Service } from "./booking";
 import { priceGroups } from "./prices";
+import { privacyReady } from "./legal";
+import PrivacyPage from "./PrivacyPage";
 import masterPhoto from "../../../src/assets/master-photo.png";
 import portfolioOne from "../../../src/assets/portfolio-1.png";
 import portfolioTwo from "../../../src/assets/portfolio-2.png";
@@ -13,7 +15,8 @@ const studioAddress = "Санкт-Петербург, ул. Ольги Берг�
 const mapLink = "https://yandex.ru/maps/?text=" + encodeURIComponent(studioAddress);
 
 function Booking() {
-  const configured = Boolean(API_URL);
+  const configured = Boolean(API_URL && privacyReady);
+  const legalMissing = Boolean(API_URL && !privacyReady);
   const [services, setServices] = useState<Service[]>([]);
   const [channels, setChannels] = useState({ telegram: false, vk: false });
   const [catalogLoading, setCatalogLoading] = useState(configured);
@@ -219,8 +222,12 @@ function Booking() {
         <div className="booking-form">
           {(!configured || catalogFailed) && (
             <div className="availability-note" role="status">
-              <strong>{!configured ? "Онлайн-запись готовится к запуску." : "Система записи временно недоступна."}</strong>
-              <p>{!configured ? "Пока можно написать мастеру напрямую. Мы не выдаём неподключённую форму за работающую." : "Не удалось получить услуги и доступные каналы. Можно повторить загрузку или написать мастеру."}</p>
+              <strong>{legalMissing ? "Онлайн-запись пока не открыта." :
+                !configured ? "Онлайн-запись готовится к запуску." : "Система записи временно недоступна."}</strong>
+              <p>{legalMissing ? "Перед открытием записи необходимо утвердить и опубликовать сведения об обработке персональных данных." :
+                !configured ? "Пока можно написать мастеру напрямую. Мы не выдаём неподключённую форму за работающую." :
+                "Не удалось получить услуги и доступные каналы. Можно повторить загрузку или написать мастеру."}</p>
+              {legalMissing && <p><a href="#privacy" target="_blank" rel="noopener noreferrer">Открыть информацию о персональных данных</a></p>}
               <p><a href={contactTelegram} target="_blank" rel="noreferrer">Написать в Telegram</a> · <a href={contactVK} target="_blank" rel="noreferrer">Написать во VK</a></p>
               {catalogFailed && <button className="button secondary wide retry-button" type="button" onClick={() => setCatalogRetry((current) => current + 1)} disabled={catalogLoading}>{catalogLoading ? "Загружаем…" : "Повторить загрузку"}</button>}
             </div>
@@ -292,10 +299,18 @@ function Booking() {
                 <label><input type="radio" name="channel" checked={channel === "telegram"} disabled={!channels.telegram} onChange={() => setChannel("telegram")}/> Telegram</label>
                 <label><input type="radio" name="channel" checked={channel === "vk"} disabled={!channels.vk} onChange={() => setChannel("vk")}/> VK</label>
               </fieldset>
-              <label className="consent">
-                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                <span>Согласна(ен) на обработку указанных данных исключительно для записи и связи по услуге.</span>
+              <label className="consent" htmlFor="booking-consent">
+                <input id="booking-consent" type="checkbox" checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)} />
+                <span>Даю отдельное согласие на обработку моего имени, указанного при наличии телефона,
+                выбранной услуги и времени записи, а после подтверждения — идентификатора
+                мессенджера, исключительно для оформления и сопровождения визита.</span>
               </label>
+              <p className="fineprint consent-policy">
+                <a href="#privacy" target="_blank" rel="noopener noreferrer">
+                  Политика обработки персональных данных
+                </a> — откроется в новой вкладке. Рекламных рассылок нет.
+              </p>
               <button className="button primary wide" type="button" disabled={!serviceId || !slot || !name.trim() || !consent || busy || !channels[channel]} onClick={reserve}>
                 {busy ? "Создаём заявку…" : "Зарезервировать время"}
               </button>
@@ -354,6 +369,15 @@ function Booking() {
 }
 
 function App() {
+  const [policyVisible, setPolicyVisible] = useState(
+    () => typeof window !== "undefined" && window.location.hash === "#privacy",
+  );
+  useEffect(() => {
+    const onHashChange = () => setPolicyVisible(window.location.hash === "#privacy");
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+  if (policyVisible) return <PrivacyPage />;
   return (
     <>
       <a href="#home" className="skip-link">Перейти к содержимому</a>
@@ -446,7 +470,7 @@ function App() {
           </div>
         </section>
       </main>
-      <footer className="footer"><div className="container footer-inner"><span>STASY BELL · HAIR STUDIO</span><span>Санкт-Петербург · 2026</span></div></footer>
+      <footer className="footer"><div className="container footer-inner"><span>STASY BELL · HAIR STUDIO</span><a href="#privacy">Политика обработки персональных данных</a><span>Санкт-Петербург · 2026</span></div></footer>
     </>
   );
 }
