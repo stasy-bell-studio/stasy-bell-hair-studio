@@ -141,23 +141,43 @@ test("booking uses a synthetic hold and waits for messenger confirmation without
   await timeField.selectOption(`${bookingDay}T07:00:00Z`);
   await page.getByLabel("Как к вам обращаться").fill("Тестовый гость");
   await page.getByRole("checkbox").check();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: test.info().outputPath("booking-selection.png"), fullPage: true });
   await page.getByRole("button", { name: "Зарезервировать время" }).click();
 
   await expect(page.getByRole("heading", { name: "Осталось подтвердить запись" })).toBeVisible();
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: test.info().outputPath("booking-pending.png"), fullPage: true });
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: test.info().outputPath("booking-pending-mobile.png"), fullPage: true });
   await page.setViewportSize({ width: 1280, height: 720 });
   await expect(page.getByText("Синтетический тест подтверждения записи.")).toBeVisible();
   api.releaseConfirmation();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Запись подтверждена!" })).toBeVisible({ timeout: 5_000 });
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: test.info().outputPath("booking-confirmed.png"), fullPage: true });
   expect(api.getBookingBody()).toMatchObject({
     name: "Тестовый гость",
@@ -188,7 +208,11 @@ test("pending messenger hold survives a reload without becoming confirmed", asyn
   await page.reload();
   await expect(page.getByRole("heading", { name: "Осталось подтвердить запись" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Запись подтверждена!" })).toHaveCount(0);
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: test.info().outputPath("booking-pending-after-reload.png"), fullPage: true });
 });
 
@@ -208,7 +232,11 @@ test("expired messenger hold offers a clean restart", async ({ page }) => {
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Зарезервировать время" }).click();
   await expect(page.getByRole("heading", { name: "Время брони истекло" })).toBeVisible({ timeout: 5_000 });
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+  });
+  await page.waitForFunction(() => window.scrollY === 0);
   await page.screenshot({ path: test.info().outputPath("booking-expired.png"), fullPage: true });
   await page.getByRole("button", { name: "Выбрать другое время" }).click();
   await expect(page.getByLabel("Процедура")).toBeVisible();
