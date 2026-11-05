@@ -36,8 +36,10 @@ PY
 DB_CONTAINER="$("${COMPOSE[@]}" ps --status running -q db)"
 [[ -n "$DB_CONTAINER" ]] || abort "Existing test PostgreSQL isn't running; won't create a replacement"
 OWNER_COUNT="$("${COMPOSE[@]}" exec -T db sh -c \
-  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT count(*) FROM master_accounts WHERE username=\x27s20tester\x27;"' 2>/dev/null)" ||
-  abort "Couldn't verify test owner s20tester in the existing DB"
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At' <<'SQL'
+SELECT count(*) FROM master_accounts WHERE username='s20tester';
+SQL
+)" || abort "Couldn't verify test owner s20tester in the existing DB"
 [[ "$OWNER_COUNT" =~ ^[1-9][0-9]*$ ]] || abort "s20tester is missing from the existing DB"
 
 IP="${STASY_LAN_IP:-}"
