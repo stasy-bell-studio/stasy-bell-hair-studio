@@ -124,6 +124,20 @@ jobs:
       - name: Build separate V2 site (no publish)
         run: npx vite build --config v2/web/vite.config.ts
 
+  mac-lan-safety:
+    name: Mac LAN debug scripts (syntax only; no launch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify macOS helper scripts and LAN binding defaults
+        run: |
+          set -euo pipefail
+          bash -n v2/android/scripts/run-mac-lan.sh
+          bash -n v2/android/scripts/stop-mac-lan.sh
+          grep -Fq '\${STASY_API_BIND_IP:-127.0.0.1}' v2/infra/compose.yaml
+          grep -Fq 'macHost' v2/android/app/src/main/java/com/stasybell/os/MainActivity.kt
+          echo "Mac LAN helpers pass shell syntax and keep loopback as default"
+  
   staging-safety:
     name: Private staging config checks (synthetic only; no deployment)
     runs-on: ubuntu-latest
