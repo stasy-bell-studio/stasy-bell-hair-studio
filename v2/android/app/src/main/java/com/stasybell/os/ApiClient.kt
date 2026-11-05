@@ -20,6 +20,22 @@ data class ServiceItem(
     val minutes: Int?, val priceKopecks: Int?, val bufferMinutes: Int,
 )
 data class ClientItem(val id: String, val name: String, val phone: String?)
+data class ClientHistoryVisit(
+    val id: String, val startsAt: String, val status: String, val source: String,
+    val service: String, val variant: String?, val quotedKopecks: Long?,
+    val receivedKopecks: Long,
+)
+data class ClientHistoryPage(
+    val visits: List<ClientHistoryVisit>, val total: Int, val hasMore: Boolean,
+)
+data class ServiceReportRow(val name: String, val variant: String?, val completed: Int)
+data class OwnerMonthlyReport(
+    val year: Int, val month: Int, val visitsTotal: Int,
+    val visitsByStatus: Map<String, Int>, val completedMinutes: Long,
+    val serviceBreakdown: List<ServiceReportRow>,
+    val incomeKopecks: Long, val expenseKopecks: Long, val balanceKopecks: Long,
+    val isClosed: Boolean,
+)
 data class CashSummary(
     val incomeKopecks: Long,
     val expenseKopecks: Long,
@@ -251,6 +267,55 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                 row.getInt("buffer_minutes"),
             )
         }
+    }
+
+    suspend fun clientHistory(token: String, clientId: String, offset: Int = 0): ClientHistoryPage {
+        val result = call("GET", "owner/clients/$clientId/history?offset=$offset&limit=30", token = token)
+        val array = result.getJSONArray("visits")
+        val rows = (0 until array.length()).map { index ->
+            val row = array.getJSONObject(index)
+            ClientHistoryVisit(
+                id = row.getString("id"),
+                startsAt = row.getString("starts_at"),
+                status = row.getString("status"),
+                source = row.getString("source"),
+                service = row.optString("service_name").takeIf { it.isNotBlank() && it != "null" }
+                    ?: "Услуга не указана",
+                variant = row.optString("service_variant").takeIf { it.isNotBlank() && it != "null" },
+                quotedKopecks = if (row.isNull("quoted_price_kopecks")) null
+                    else row.getLong("quoted_price_kopecks"),
+                receivedKopecks = row.getLong("received_kopecks"),
+            )
+        }
+        return ClientHistoryPage(rows, result.getInt("total"), result.getBoolean("has_more"))
+    }
+
+    suspend fun updateClient(token: String, clientId: String, name: String, phone: String) {
+        call("PATCH", "owner/clients/$clientId",
+            JSONObject().put("name", name).put("phone", phone.ifBlank { JSONObject.NULL }), token)
+    }
+
+    suspend fun monthlyReport(token: String, year: Int, month: Int): OwnerMonthlyReport {
+        val result = call("GET", "owner/reports/month?year=$year&month=$month", token = token)
+        val statuses = result.getJSONObject("visits_by_status")
+        val keys = statuses.keys().asSequence().toList()
+        val rows = result.getJSONArray("service_breakdown")
+        return OwnerMonthlyReport(
+            year = result.getInt("year"), month = result.getInt("month"),
+            visitsTotal = result.getInt("visits_total"),
+            visitsByStatus = keys.associateWith { statuses.getInt(it) },
+            completedMinutes = result.getLong("completed_minutes"),
+            serviceBreakdown = (0 until rows.length()).map { i ->
+                val r = rows.getJSONObject(i)
+                ServiceReportRow(r.getString("name"),
+                    r.optString("variant").takeIf { it.isNotBlank() && it != "null" },
+                    r.getInt("completed"))
+            },
+            incomeKopecks = result.getLong("income_kopecks"),
+            expenseKopecks = result.getLong("expense_kopecks"),
+            balanceKopecks = result.getLong("balance_kopecks"),
+            isClosed = result.getBoolean("is_closed"),
+        )
     }
 
     suspend fun clients(token: String): List<ClientItem> {

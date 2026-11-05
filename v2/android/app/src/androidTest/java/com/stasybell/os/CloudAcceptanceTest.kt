@@ -249,7 +249,9 @@ class CloudAcceptanceTest {
         screenshot("09-clients")
         click("Подробнее · Synthetic Completed")
         waitFor("Карточка клиента")
-        waitFor("Полная история клиента пока недоступна.")
+        waitFor("История визитов", substring = true)
+        waitFor("Synthetic Completed")
+        waitFor("Стоимость по записи:", substring = true)
         screenshot("09-client-detail")
         click("Назад к клиентам")
 
