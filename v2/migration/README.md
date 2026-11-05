@@ -15,3 +15,29 @@ Optional private `--map /private/mapping.json`, with contents such as `{"name":"
 The report includes **counts and error categories only**, never names, telephone numbers or financial row details. It discovers headers in first 30 rows and streams worksheet rows (max 200,000 or 60 MiB input). It detects possible duplicate clients via normalized name+phone and duplicate finance records using normalized date+amount+kind+category. It validates amounts exactly in kopecks and rejects values outside integer range; it never evaluates Excel formulas. A flagged duplicate needs manual review rather than automatic deletion.
 
 **The real import is NOT done yet.** After seeing actual files and resolving ambiguous columns, implement a separately reviewed staging import under a restricted, backed-up PostgreSQL instance, compare totals and row counts to originals, then approve any production transfer. Treat spreadsheet macros, formulas and external links as untrusted; use `read_only`/`data_only` mode. Keep original files private and encrypted at rest.
+
+## Safe private export preparation (no DB writes)
+
+A separate offline tool turns a **preflight-approved** XLSX into structured
+JSONL for mapping review. This is not an importer into PostgreSQL and does not
+connect to a network or API. Use a private encrypted disk and output path
+outside Git. It refuses duplicate/invalid rows and formula cells in mapped data
+columns. No names or phone numbers appear in the printed manifest.
+
+```sh
+python v2/migration/prepare_private_import.py /private/clients.xlsx --kind clients \
+  --output /private/import/clients-reviewed.jsonl
+python v2/migration/prepare_private_import.py /private/finance.xlsx --kind finances \
+  --output /private/import/finance-reviewed.jsonl
+```
+
+The sidecar `.manifest.json` captures record count, exact RUB values in kopecks
+and SHA-256 of source/output. It refuses overwrite and stores normalized JSONL
+with private permissions. No real spreadsheet is in the repository.
+
+**Critical:** This stage does **not** verify actual workbook structure or perform
+the final PostgreSQL transfer. Linking historical money to completed visits and
+resolving ambiguous categories/duplicates require the real source files and
+explicit mapping. A real DB import must be a reviewed, backed-up staging-only
+transaction with row count and sum reconciliation; never automatically recognize
+a visit's quoted price as paid income.
