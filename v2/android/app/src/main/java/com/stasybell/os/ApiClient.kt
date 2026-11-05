@@ -350,12 +350,18 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
     }
 
     suspend fun manualBooking(
-        token: String, clientName: String, serviceId: String, date: String, clock: String,
+        token: String, clientName: String, existingClientId: String?,
+        serviceId: String, date: String, clock: String,
     ): String {
-        val body = JSONObject().put("client_name", clientName)
+        val body = JSONObject()
             .put("service_id", serviceId)
             .put("starts_at", toMoscowOffset(date, clock))
             .put("source", "phone")
+        if (existingClientId == null) {
+            body.put("client_name", clientName)
+        } else {
+            body.put("existing_client_id", existingClientId)
+        }
         return call("POST", "owner/calendar/manual", body, token).getString("id")
     }
 
