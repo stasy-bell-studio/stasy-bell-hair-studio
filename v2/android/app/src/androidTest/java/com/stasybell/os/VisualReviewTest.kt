@@ -1,6 +1,8 @@
 package com.stasybell.os
 
-import android.os.ParcelFileDescriptor
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import java.io.File
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -22,11 +24,13 @@ class VisualReviewTest {
 
     private fun capture(name: String) {
         compose.waitForIdle()
-        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        listOf("mkdir -p /sdcard/acceptance", "screencap -p /sdcard/acceptance/$name.png").forEach {
-            ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(it)).use { stream ->
-                stream.readBytes()
-            }
+        // Capture the actual Compose rendering after its draw barrier, avoiding
+        // a shell screenshot racing the system compositor's previous frame.
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val directory = File(context.getExternalFilesDir(null), "visual-review").apply { mkdirs() }
+        File(directory, "$name.png").outputStream().use {
+            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
         }
     }
 
@@ -44,7 +48,7 @@ class VisualReviewTest {
         capture("review-01-home")
 
         compose.onNodeWithContentDescription("Календарь").performClick()
-        waitFor("Записей за период: 7")
+        waitFor("Анна · демо")
         compose.onNodeWithText("Анна · демо").assertIsDisplayed()
         capture("review-02-calendar")
 

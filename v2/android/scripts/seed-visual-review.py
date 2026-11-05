@@ -46,7 +46,10 @@ def main():
                     "client_name": client_name, "service_id": service["id"],
                     "starts_at": f"{day}T{clock}:00+03:00", "source": "phone",
                 })
-        for kind, amount in (("income", 960000), ("expense", 180000)):
+        for kind, amount in (("income", 1200000 - summary["income_kopecks"]),
+                             ("expense", 180000 - summary["expense_kopecks"])):
+            if amount <= 0:
+                continue
             send("POST", "/owner/finances/transactions", json={
                 "kind": kind, "category": "other", "amount_kopecks": amount,
                 "occurred_at": now.isoformat(), "note": "Synthetic visual review",

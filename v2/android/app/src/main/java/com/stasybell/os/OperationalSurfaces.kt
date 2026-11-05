@@ -65,13 +65,13 @@ fun EditorialCard(modifier: Modifier = Modifier, spacing: androidx.compose.ui.un
 }
 
 @Composable
-fun GlassMetric(label: String, value: String, modifier: Modifier = Modifier) {
+fun GlassMetric(label: String, value: String, modifier: Modifier = Modifier, compact: Boolean = false) {
     Surface(modifier, shape = RoundedCornerShape(10.dp), color = Color.White.copy(alpha = .13f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = .24f))) {
         Column(Modifier.background(Brush.verticalGradient(listOf(Color.White.copy(alpha = .09f),
             Color.Transparent))).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(label, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp)
-            Text(value, color = Color.White, fontSize = if (value.length > 9) 17.sp else 22.sp,
+            Text(value, color = Color.White, fontSize = if (compact && value.length > 9) 15.sp else 22.sp,
                 fontWeight = FontWeight.SemiBold, lineHeight = 27.sp)
         }
     }
@@ -132,7 +132,7 @@ fun TodayOverview(today: LocalDate, visits: List<VisitItem>, clients: List<Clien
                 color = StasyColors.Mint, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GlassMetric("Записей\nсегодня", todayVisits.size.toString(), Modifier.weight(1f))
-                GlassMetric("Получено\nсегодня", dailyIncome?.let { formatCash(it) } ?: "—", Modifier.weight(1f))
+                GlassMetric("Получено\nсегодня", dailyIncome?.let { formatCash(it) } ?: "—", Modifier.weight(1f), compact = true)
                 GlassMetric("Загрузка\nдня", load, Modifier.weight(1f))
             }
         }
@@ -151,7 +151,7 @@ fun TodayOverview(today: LocalDate, visits: List<VisitItem>, clients: List<Clien
             }
         }
         Text("Фактические поступления вносятся вручную.", style = MaterialTheme.typography.bodySmall,
-            color = StasyColors.Muted, modifier = Modifier.padding(horizontal = 4.dp))
+            color = StasyColors.Muted, modifier = Modifier.padding(start = 4.dp, end = 72.dp, bottom = 24.dp))
     }
 }
 

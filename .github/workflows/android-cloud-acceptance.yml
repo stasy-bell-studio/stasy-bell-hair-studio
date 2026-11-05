@@ -2,6 +2,12 @@ name: Android cloud acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Full owner journey or visual capture only
+        type: choice
+        options: [full, visual]
+        default: full
   pull_request:
     branches: [develop/stasy-bell-os-v2]
     paths:
@@ -33,6 +39,7 @@ jobs:
           --health-cmd "pg_isready -U acceptance -d acceptance"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      STASY_REVIEW_MODE: ${{ inputs.mode || 'full' }}
       DATABASE_URL: postgresql+psycopg://acceptance:synthetic_only@127.0.0.1:5432/acceptance
       JWT_SECRET: synthetic_acceptance_only_signing_key_1234567890
       MASTER_BOOTSTRAP_USERNAME: acceptance_owner
