@@ -1,0 +1,19 @@
+{
+    email {$STASY_ACME_EMAIL}
+}
+
+{$STASY_API_DOMAIN} {
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+        Strict-Transport-Security "max-age=31536000"
+        -Server
+    }
+
+    @private_health path /ready
+    respond @private_health 404
+
+    reverse_proxy api:8000
+}
