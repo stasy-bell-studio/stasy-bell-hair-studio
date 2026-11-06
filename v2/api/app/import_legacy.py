@@ -11,13 +11,13 @@ import os
 import re
 import sys
 from datetime import date
-from uuid import UUID, uuid5, NAMESPACE_URL
+from uuid import uuid5, NAMESPACE_URL
 
 from sqlalchemy import func, select, text
 
 from app.db import get_session_factory
 from app.models import (
-    Client, FinanceTransaction, CalendarEntry, LegacyCatalogItem, LegacyClientRef,
+    Client, LegacyCatalogItem, LegacyClientRef,
     LegacyImportBatch, LegacyMonthlySummary, LegacyVisit, MasterAccount,
 )
 
@@ -167,7 +167,6 @@ def apply_archive(db, digest, data, *, dry_run):
         if db.scalar(select(func.count()).select_from(model)):
             _die("Archive tables are nonempty without the expected batch: refuse possible double import")
 
-    refs = {item["ref"] for item in data["clients"]}
     phone_list = [item["phone"] for item in data["clients"] if item.get("phone")]
     present = db.scalars(select(Client).where(Client.phone.in_(phone_list))).all()
     by_phone = {}
