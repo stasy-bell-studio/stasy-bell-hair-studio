@@ -23,7 +23,7 @@ unzip -p "$ZIP" archive.json > "$EXTRACTED/archive.json" || die "Missing private
 chmod 600 "$EXTRACTED/archive.json"
 test -s "$EXTRACTED/archive.json" || die "Empty archive.json"
 COMPOSE=(docker compose --env-file v2/.env -f v2/infra/compose.yaml)
-DB_ID="$(${COMPOSE[@]} ps --status running -q db)"
+DB_ID="$("${COMPOSE[@]}" ps --status running -q db)"
 [[ -n "$DB_ID" ]] || die "Existing test PostgreSQL must be running"
 python3 - <<'PY'
 from pathlib import Path
