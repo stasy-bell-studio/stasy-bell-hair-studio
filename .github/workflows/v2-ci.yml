@@ -134,6 +134,7 @@ jobs:
           set -euo pipefail
           bash -n v2/android/scripts/run-mac-lan.sh
           bash -n v2/android/scripts/stop-mac-lan.sh
+          bash -n v2/migration/import-mac-archive.sh
           grep -Fq 'STASY_API_BIND_IP:-127.0.0.1' v2/infra/compose.yaml
           grep -Fq 'macHost' v2/android/app/src/main/java/com/stasybell/os/MainActivity.kt
           echo "Mac LAN helpers pass shell syntax and keep loopback as default"
