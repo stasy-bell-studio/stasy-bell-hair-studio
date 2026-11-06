@@ -27,14 +27,17 @@ fun ReportsPanel(api: ApiClient, token: String) {
     val current = remember { YearMonth.now(ZoneId.of("Europe/Moscow")) }
     var period by remember { mutableStateOf(current) }
     var report by remember { mutableStateOf<OwnerMonthlyReport?>(null) }
+    var legacy by remember { mutableStateOf<LegacyMonthlyReport?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     LaunchedEffect(token, period) {
         loading = true
         report = null
+        legacy = null
         error = ""
         try {
             report = api.monthlyReport(token, period.year, period.monthValue)
+            legacy = api.legacyMonthlyReport(token, period.year, period.monthValue)
         } catch (ex: Exception) {
             error = "Не удалось загрузить отчёт: ${ex.message}"
         } finally { loading = false }
@@ -56,6 +59,25 @@ fun ReportsPanel(api: ApiClient, token: String) {
         }
         if (loading) Text("Загрузка…")
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
+        legacy?.let { archive ->
+            if (archive.archivedVisits > 0) {
+                AppCard {
+                    Text("История из Excel · ${archive.archivedVisits} визитов",
+                        style = MaterialTheme.typography.titleMedium)
+                    archive.historicalAmountKopecks?.let {
+                        Text("Суммы в архивных строках: ${formatCash(it)}")
+                    }
+                    archive.recordedRevenueKopecks?.let {
+                        Text("Сводка старой таблицы: ${formatCash(it)}")
+                    }
+                    archive.recordedConsumablesKopecks?.let {
+                        Text("Расходники по старой таблице: ${formatCash(it)}")
+                    }
+                    Text("Архивные значения не включены в текущие поступления и расходы.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         report?.let { r ->
             AppCard {
                 Text("Фактические деньги", style = MaterialTheme.typography.titleMedium)

@@ -226,6 +226,16 @@ fun MasterApp() {
                 if (macHost.isNotEmpty()) {
                     Text("Активный сервер: http://$macHost:8000/",
                         style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = {
+                        if (LocalTestServer.clearHost(appContext)) {
+                            sessionStore.clear()
+                            token = null
+                            macHost = ""
+                            hostInput = ""
+                            password = ""
+                            hostError = ""
+                        }
+                    }) { Text("Тестировать через USB (adb reverse)") }
                 }
                 if (hostError.isNotBlank()) {
                     Text(hostError, color = MaterialTheme.colorScheme.error)
@@ -429,6 +439,9 @@ fun ClientsPanel(
     var history by remember { mutableStateOf<List<ClientHistoryVisit>>(emptyList()) }
     var total by remember { mutableStateOf(0) }
     var hasMore by remember { mutableStateOf(false) }
+    var legacyHistory by remember { mutableStateOf<List<LegacyHistoryVisit>>(emptyList()) }
+    var legacyTotal by remember { mutableStateOf(0) }
+    var legacyHasMore by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf(false) }
@@ -444,6 +457,9 @@ fun ClientsPanel(
         history = emptyList()
         total = 0
         hasMore = false
+        legacyHistory = emptyList()
+        legacyTotal = 0
+        legacyHasMore = false
         errorMessage = ""
         editing = false
         val id = selectedId ?: return@LaunchedEffect
@@ -453,6 +469,10 @@ fun ClientsPanel(
             history = data.visits
             total = data.total
             hasMore = data.hasMore
+            val archived = api.legacyClientHistory(token, id)
+            legacyHistory = archived.visits
+            legacyTotal = archived.total
+            legacyHasMore = archived.hasMore
         } catch (ex: Exception) {
             errorMessage = "Не удалось получить историю: ${ex.message}"
         } finally {
@@ -527,6 +547,39 @@ fun ClientsPanel(
                         } finally { loading = false }
                     }
                 }) { Text("Показать ещё") }
+            }
+            Text("Архивные визиты · $legacyTotal", style = MaterialTheme.typography.titleMedium)
+            Text("Исторические суммы из Excel — не подтверждённая касса.",
+                style = MaterialTheme.typography.bodySmall)
+            legacyHistory.forEach { visit ->
+                AppCard {
+                    Text(visit.date.split("-").reversed().joinToString("."),
+                        style = MaterialTheme.typography.titleMedium)
+                    Text(visit.service)
+                    visit.historicalAmountKopecks?.let {
+                        Text("Сумма в старом журнале: ${formatCash(it)}")
+                    }
+                    visit.notes?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                }
+            }
+            if (legacyHasMore) {
+                TextButton(enabled = !loading, onClick = {
+                    loading = true
+                    val target = selected.id
+                    val offset = legacyHistory.size
+                    scope.launch {
+                        try {
+                            val next = api.legacyClientHistory(token, target, offset)
+                            if (selectedId == target) {
+                                legacyHistory = legacyHistory + next.visits
+                                legacyHasMore = next.hasMore
+                                legacyTotal = next.total
+                            }
+                        } catch (ex: Exception) {
+                            errorMessage = "Не удалось загрузить архив: ${ex.message}"
+                        } finally { loading = false }
+                    }
+                }) { Text("Ещё из архива") }
             }
             TextButton(onClick = { selectedId = null }) { Text("Назад к клиентам") }
         } else {
