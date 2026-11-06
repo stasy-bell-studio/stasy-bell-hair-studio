@@ -21,9 +21,9 @@ from app.models import (
     LegacyImportBatch, LegacyMonthlySummary, LegacyVisit, MasterAccount,
 )
 
-PHONE_PATTERN = re.compile(r"^\\+7\\d{10}$")
+PHONE_PATTERN = re.compile(r"^\+7\d{10}$")
 REF_PATTERN = re.compile(r"^[a-zA-Z0-9:._-]{1,200}$")
-PERIOD_PATTERN = re.compile(r"^20\\d{2}-(0[1-9]|1[0-2])$")
+PERIOD_PATTERN = re.compile(r"^20\d{2}-(0[1-9]|1[0-2])$")
 DATASET_FORMAT = "stasy-bell-legacy-archive-v1"
 
 
