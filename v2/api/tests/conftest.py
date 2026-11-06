@@ -30,7 +30,9 @@ def reset_database(migrated_database):
             db.execute(text(
                 "TRUNCATE calendar_events, confirmation_tokens, calendar_entries, "
                 "master_accounts, clients, services, working_windows, public_rate_events, " 
-                "finance_transactions, month_closures, material_movements, materials CASCADE"
+                "finance_transactions, month_closures, material_movements, materials, "
+                "legacy_import_batches, legacy_monthly_summaries, legacy_catalog_items, "
+                "legacy_visits, legacy_client_refs CASCADE"
             ))
 
 

@@ -36,6 +36,18 @@ data class OwnerMonthlyReport(
     val incomeKopecks: Long, val expenseKopecks: Long, val balanceKopecks: Long,
     val isClosed: Boolean,
 )
+data class LegacyHistoryVisit(
+    val ref: String, val date: String, val service: String,
+    val historicalAmountKopecks: Long?, val origin: String, val notes: String?,
+)
+data class LegacyHistoryPage(
+    val visits: List<LegacyHistoryVisit>, val total: Int, val hasMore: Boolean,
+)
+data class LegacyMonthlyReport(
+    val archivedVisits: Int, val historicalAmountKopecks: Long?,
+    val recordedRevenueKopecks: Long?, val recordedConsumablesKopecks: Long?,
+)
+
 data class CashSummary(
     val incomeKopecks: Long,
     val expenseKopecks: Long,
@@ -267,6 +279,43 @@ class ApiClient(private val base: String = BuildConfig.API_BASE_URL) {
                 row.getInt("buffer_minutes"),
             )
         }
+    }
+
+    suspend fun legacyClientHistory(token: String, clientId: String, offset: Int = 0): LegacyHistoryPage {
+        val response = call("GET",
+            "owner/archive/clients/$clientId/visits?offset=$offset&limit=50", token = token)
+        val items = response.getJSONArray("visits")
+        return LegacyHistoryPage(
+            visits = (0 until items.length()).map { i ->
+                val item = items.getJSONObject(i)
+                LegacyHistoryVisit(
+                    ref = item.getString("ref"),
+                    date = item.getString("date"),
+                    service = item.getString("service"),
+                    historicalAmountKopecks = if (item.isNull("historical_amount_kopecks")) null
+                        else item.getLong("historical_amount_kopecks"),
+                    origin = item.getString("amount_origin"),
+                    notes = item.optString("notes").takeIf {
+                        it.isNotBlank() && it != "null"
+                    },
+                )
+            },
+            total = response.getInt("total"), hasMore = response.getBoolean("has_more"),
+        )
+    }
+
+    suspend fun legacyMonthlyReport(token: String, year: Int, month: Int): LegacyMonthlyReport {
+        val response = call("GET", "owner/archive/month?year=$year&month=$month", token = token)
+        val historical = response.optJSONObject("legacy_sheet_summary")
+        return LegacyMonthlyReport(
+            archivedVisits = response.getInt("archived_visits"),
+            historicalAmountKopecks = if (response.isNull("historical_amount_sum_kopecks")) null
+                else response.getLong("historical_amount_sum_kopecks"),
+            recordedRevenueKopecks = if (historical == null || historical.isNull("revenue_kopecks"))
+                null else historical.getLong("revenue_kopecks"),
+            recordedConsumablesKopecks = if (historical == null || historical.isNull("consumables_kopecks"))
+                null else historical.getLong("consumables_kopecks"),
+        )
     }
 
     suspend fun clientHistory(token: String, clientId: String, offset: Int = 0): ClientHistoryPage {

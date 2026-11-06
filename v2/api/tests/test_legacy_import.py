@@ -58,6 +58,12 @@ def test_validate_rejects_changed_money():
 def test_dry_run_then_apply_archive_only(api, owner_token, monkeypatch):
     document = sample()
     digest, data = validate_package(document)
+    from app.auth import passwords
+    from app.models import MasterAccount
+    with get_session_factory()() as db:
+        db.add(MasterAccount(username="s20tester",
+                             password_hash=passwords.hash("synthetic-s20-only-password")))
+        db.commit()
     monkeypatch.setenv("STASY_EMULATOR_DB", "1")
     monkeypatch.setenv("STASY_PUBLIC_BOOKING_ENABLED", "0")
     h = {"Authorization": f"Bearer {owner_token}"}

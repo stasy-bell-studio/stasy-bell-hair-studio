@@ -35,6 +35,12 @@ object LocalTestServer {
         return if (current.isBlank()) BuildConfig.API_BASE_URL else "http://$current:8000/"
     }
 
+    fun clearHost(context: Context): Boolean {
+        if (!BuildConfig.DEBUG) return false
+        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().remove(HOST_KEY).commit()
+    }
+
     fun setHost(context: Context, proposed: String): Boolean {
         if (!BuildConfig.DEBUG) return false
         val ip = proposed.trim()
