@@ -228,6 +228,68 @@ class MaterialMovement(Base):
     )
 
 
+class LegacyClientRef(Base):
+    """Original archive reference mapped to one real Client without rewriting demo clients."""
+    __tablename__ = "legacy_client_refs"
+    ref: Mapped[str] = mapped_column(String(200), primary_key=True)
+    client_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False, index=True,
+    )
+
+
+class LegacyVisit(Base):
+    """Date-only history; deliberately NOT an appointment or a cash transaction."""
+    __tablename__ = "legacy_visits"
+    ref: Mapped[str] = mapped_column(String(200), primary_key=True)
+    client_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("clients.id", ondelete="RESTRICT"), index=True,
+    )
+    visited_on: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    service_label: Mapped[str] = mapped_column(String(300), nullable=False)
+    amount_kopecks: Mapped[int | None] = mapped_column(Integer)
+    amount_origin: Mapped[str] = mapped_column(String(50), nullable=False)
+    consumables_kopecks: Mapped[int | None] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+    source_sheet: Mapped[str] = mapped_column(String(120), nullable=False)
+    source_row: Mapped[int | None] = mapped_column(Integer)
+    __table_args__ = (
+        CheckConstraint("amount_kopecks IS NULL OR amount_kopecks >= 0", name="nonnegative_legacy_amount"),
+        CheckConstraint("consumables_kopecks IS NULL OR consumables_kopecks >= 0", name="nonnegative_legacy_cost"),
+    )
+
+
+class LegacyCatalogItem(Base):
+    __tablename__ = "legacy_catalog_items"
+    ref: Mapped[str] = mapped_column(String(200), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(200))
+    price_kopecks: Mapped[int | None] = mapped_column(Integer)
+    cost_estimate_kopecks: Mapped[int | None] = mapped_column(Integer)
+    active_in_source: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+
+class LegacyMonthlySummary(Base):
+    __tablename__ = "legacy_monthly_summaries"
+    period: Mapped[str] = mapped_column(String(7), primary_key=True)
+    revenue_kopecks: Mapped[int | None] = mapped_column(Integer)
+    consumables_kopecks: Mapped[int | None] = mapped_column(Integer)
+    rent_kopecks: Mapped[int | None] = mapped_column(Integer)
+    utilities_kopecks: Mapped[int | None] = mapped_column(Integer)
+    other_expenses_kopecks: Mapped[int | None] = mapped_column(Integer)
+    net_profit_kopecks: Mapped[int | None] = mapped_column(Integer)
+    unique_clients: Mapped[int | None] = mapped_column(Integer)
+    total_visits: Mapped[int | None] = mapped_column(Integer)
+
+
+class LegacyImportBatch(Base):
+    __tablename__ = "legacy_import_batches"
+    dataset_sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
+    counts: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+
+
 class OwnerNotification(Base):
     __tablename__ = "owner_notifications"
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
